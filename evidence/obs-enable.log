@@ -1,0 +1,29 @@
+
+==> L1 Gateway application logs (vended logs -> CloudWatch Logs)  [AgentCore account]
+lab-gw-logs
+arn:aws:logs:us-east-1:<AGENTCORE_ACCOUNT_ID>:delivery-destination:lab-gw-cwl
+Lrhx5aRAVoIUUN0r
+
+==> L2 AWS WAF logs  [AgentCore account]
+arn:aws:logs:us-east-1:<AGENTCORE_ACCOUNT_ID>:log-group:aws-waf-logs-lab-gateway
+
+==> L3 VPC Lattice access logs on each resource configuration  [network account]
+  als-02dfe29ff6531556c
+  throttled (attempt 1/5), retrying...
+  als-0a56897c8f061893a
+
+==> L4 VPC flow logs: agent VPC (Gateway VPCE) + resource gateway (central) VPC  [network account]
+{
+    "ids": [
+        "fl-075c143a94cb25d8a",
+        "fl-0d4a8648a2218a29f"
+    ],
+    "errors": []
+}
+
+==> L5 Internal ALB access + connection logs -> S3  [tool account]  (the bucket policy's second statement is the us-east-1 ELB log-delivery account; other Regions need their own, see the ELB documentation)
+access_logs.s3.enabled	true
+connection_logs.s3.enabled	true
+health_check_logs.s3.enabled	false
+
+==> Logging enabled. Run: ./observability.sh traffic, wait ~5-10 min, then ./observability.sh verify

@@ -1,0 +1,29 @@
+==> N2 direct VPC Lattice CreateResourceGateway in the shared agent subnets, called by the AgentCore account (participant)
+  subnets subnet-0f8eda7b11fa7814c,subnet-09a9f790ebf0363b2 (owner <NETWORK_ACCOUNT_ID>)
+  participant SG sg-090d3b4396a35dacd owner <AGENTCORE_ACCOUNT_ID>
+--- N2a no security group
+
+aws: [ERROR]: An error occurred (ResourceNotFoundException) when calling the CreateResourceGateway operation: The subnet with ID subnet-09a9f790ebf0363b2 cannot be found. Create a subnet or enter the ID of an existing subnet.
+
+Additional error details:
+resourceType: subnet
+--- N2b participant-owned security group
+  
+aws: [ERROR]: An error occurred (ResourceNotFoundException) when calling the CreateResourceGateway operation: The subnet with ID subnet-09a9f790ebf0363b2 cannot be found. Create a subnet or enter the ID of an existing subnet.
+
+Additional error details:
+resourceType: subnet
+--- N2c same call from the network account (VPC owner), no security group
+  rgw-0a00e78df1d4dc8ac
+--- cleanup
+DELETE_IN_PROGRESS
+--- N2d participant, one subnet at a time, own SG sg-090d3b4396a35dacd
+  subnet-0f8eda7b11fa7814c (use1-az1	<NETWORK_ACCOUNT_ID>)
+   -> 
+aws: [ERROR]: An error occurred (ResourceNotFoundException) when calling the CreateResourceGateway operation: The subnet with ID subnet-0f8eda7b11fa7814c cannot be found. Create a subnet or enter the
+  subnet-09a9f790ebf0363b2 (use1-az2	<NETWORK_ACCOUNT_ID>)
+   -> 
+aws: [ERROR]: An error occurred (ResourceNotFoundException) when calling the CreateResourceGateway operation: The subnet with ID subnet-09a9f790ebf0363b2 cannot be found. Create a subnet or enter the
+--- RAM: subnets shared to the AgentCore account
+arn:aws:ec2:us-east-1:<NETWORK_ACCOUNT_ID>:subnet/subnet-0f8eda7b11fa7814c	AVAILABLE
+arn:aws:ec2:us-east-1:<NETWORK_ACCOUNT_ID>:subnet/subnet-09a9f790ebf0363b2	AVAILABLE

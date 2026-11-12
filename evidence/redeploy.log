@@ -1,0 +1,15 @@
+== lab-spoke1-inbound
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-spoke1-inbound
+== lab-hub-network
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-hub-network
+== lab-spoke2-api
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-spoke2-api
+== lab-spoke2-tools-alb
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-spoke2-tools-alb
+== lab-spoke1-agent-probe
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-spoke1-agent-probe

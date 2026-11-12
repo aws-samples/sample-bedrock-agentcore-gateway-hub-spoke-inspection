@@ -1,0 +1,10 @@
+
+==> V1 create a second Gateway (same authorizer) that the endpoint policy does not list
+  endpoint policy resources: ['arn:aws:bedrock-agentcore:us-east-1:<AGENTCORE_ACCOUNT_ID>:gateway/lab-demo-gateway-cfgwcy06me']
+
+==> V2 from the shared agent subnet through the endpoint: approved Gateway vs unapproved Gateway (polls up to 15 minutes)
+  +  0s approved:    resolved ['10.11.1.48', '10.11.2.79'] | HTTP 200 | {"jsonrpc":"2.0","id":51,"result":{"tools":[{"inputSchema":{"type":"object","properties":{"employeeId":{"type":"string"}
+        unapproved:  resolved ['10.11.1.48', '10.11.2.79'] | HTTP 403 | {"jsonrpc":"2.0","id":51,"error":{"code":-32002,"message":"Authorization error - Insufficient permissions"}}
+
+==> V3 the unapproved Gateway still answers over its public endpoint (an endpoint policy controls only that endpoint)
+  HTTP 200

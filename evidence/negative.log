@@ -1,0 +1,26 @@
+
+==> N1a (check 4a) MANAGED mode on the SHARED agent subnets, no securityGroupIds (falls back to the VPC default SG, owned by the network account)
+{
+    "status": "FAILED",
+    "reasons": [
+        "Failed to create managed resource gateway: The subnet with ID subnet-09a9f790ebf0363b2 cannot be found. Create a subnet or enter the ID of an existing subnet. (Service: VpcLattice, Status Code: 404, Request ID: ec0fa746-f031-4ebc-9f51-aa31302abd02) (SDK Attempt Count: 1)"
+    ],
+    "managed": null
+}
+
+==> N1b (check 4b) MANAGED mode on the SAME shared subnets, with a security group the AgentCore account owns
+  security group sg-0b09f0613bfc52b7c, owner <AGENTCORE_ACCOUNT_ID>
+{
+    "status": "FAILED",
+    "reasons": [
+        "Failed to create managed resource gateway: The subnet with ID subnet-09a9f790ebf0363b2 cannot be found. Create a subnet or enter the ID of an existing subnet. (Service: VpcLattice, Status Code: 404, Request ID: e8a35896-508b-4ce0-9a89-451ac7b218ee) (SDK Attempt Count: 1)"
+    ],
+    "managed": null
+}
+
+==> N1d clean up the 4b target and security group
+{
+    "Return": true,
+    "GroupId": "sg-0b09f0613bfc52b7c"
+}
+  deleted sg-0b09f0613bfc52b7c

@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  LAB - TOOL ACCOUNT. An INTERNAL HTTPS ALB in the SHARED app subnets (the app team creates only an ALB
+  and a security group, no network changes). The ALB listener validates a Cognito JWT before forwarding.
+  The backend serves a REST API (/api/...) for an OpenAPI target and an MCP server (/mcp) for an
+  MCP-server target. TLS uses a PRIVATE-CA server certificate imported to ACM.
+  Deploy in the tool account after 01-hub-network.yaml (run-lab.sh alb does this).
+
+Parameters:
+  VpcId:        {Type: String, Description: shared spoke2 VPC (owned by hub)}
+  SubnetIds:    {Type: CommaDelimitedList, Description: shared spoke2 app subnets}
+  CertificateArn: {Type: String, Description: ACM ARN of the imported private-CA server cert (tools.demo-lab.internal)}
+  DomainPrefix: {Type: String, Description: globally unique Cognito hosted-domain prefix}
+  ExtraTools:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >
+      true = the app team ships a new REST route (/api/benefits/{employeeId}) and a new MCP tool (estimateCost)
+      behind the SAME ALB. Used to show that new tools need a target update or sync, not a new target or network change.
+
+Resources:
+  # ---------------- tool-account Cognito (machine-to-machine); each tool account has its own identity provider
+  ToolPool:
+    Type: AWS::Cognito::UserPool
+    Properties: {UserPoolName: lab-tools-pool}
+  ToolPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: {UserPoolId: !Ref ToolPool, Domain: !Ref DomainPrefix}
+  ToolResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref ToolPool
+      Identifier: lab-tools
+      Name: lab-tools
+      Scopes: [{ScopeName: invoke, ScopeDescription: Call tools}]
+  GatewayClient:            # used by AgentCore Gateway outbound OAuth (client_credentials)
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ToolResourceServer
+    Properties:
+      UserPoolId: !Ref ToolPool
+      ClientName: agentcore-gateway-outbound
+      GenerateSecret: true
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [client_credentials]
+      AllowedOAuthScopes: [lab-tools/invoke]
+      SupportedIdentityProviders: [COGNITO]
+
+  # ---------------- backend (stands in for ECS "Service Gateway" + an MCP server)
+  FnRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole]
+  Backend:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lab-tools-backend
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt FnRole.Arn
+      Timeout: 10
+      Environment: {Variables: {EXTRA_TOOLS: !Ref ExtraTools}}
+      Code:
+        ZipFile: |
+          import json, base64, os
+          EXTRA = os.environ.get("EXTRA_TOOLS") == "true"
+          REASON = {200: "OK", 202: "Accepted", 404: "Not Found", 405: "Method Not Allowed"}
+          def resp(code, body, ctype="application/json", extra=None):
+              h = {"Content-Type": ctype}; h.update(extra or {})
+              return {"statusCode": code, "statusDescription": f"{code} {REASON.get(code, 'OK')}", "isBase64Encoded": False,
+                      "headers": h, "body": body if isinstance(body, str) else json.dumps(body)}
+          def net(ev):
+              h = ev.get("headers") or {}
+              return {"xForwardedFor": h.get("x-forwarded-for"), "host": h.get("host"),
+                      "jwtValidatedByAlb": "x-amzn-oidc-data" not in h and "authorization" in h}
+          TOOLS = [{"name": "classifyQuestion", "description": "Classify a member question into a benefits category",
+                    "inputSchema": {"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]}}]
+          if EXTRA:
+              TOOLS.append({"name": "estimateCost", "description": "Estimate member cost for a procedure",
+                            "inputSchema": {"type": "object", "properties": {"procedure": {"type": "string"}}, "required": ["procedure"]}})
+          def handler(ev, ctx):
+              path, method = ev.get("path", "/"), ev.get("httpMethod", "GET")
+              raw = ev.get("body") or ""
+              if ev.get("isBase64Encoded"): raw = base64.b64decode(raw).decode()
+              if path.startswith("/api/employees/") and method == "GET":
+                  emp = path.rsplit("/", 1)[-1]
+                  return resp(200, {"employeeId": emp, "plan": "Gold PPO", "servedBy": "Service Gateway (internal ALB, tool account)", **net(ev)})
+              if EXTRA and path.startswith("/api/benefits/") and method == "GET":
+                  return resp(200, {"employeeId": path.rsplit("/", 1)[-1], "dental": "100% preventive", "servedBy": "NEW route v2", **net(ev)})
+              if path == "/api/plans" and method == "GET":
+                  return resp(200, {"plans": [{"id": "gold"}, {"id": "silver"}], **net(ev)})
+              if path == "/mcp":
+                  if method != "POST": return resp(405, {"error": "use POST"})
+                  m = json.loads(raw or "{}"); mid = m.get("id"); meth = m.get("method")
+                  if mid is None: return resp(202, "")            # notification (e.g. notifications/initialized)
+                  if meth == "initialize":
+                      pv = (m.get("params") or {}).get("protocolVersion", "2025-06-18")
+                      r = {"protocolVersion": pv, "capabilities": {"tools": {"listChanged": False}},
+                           "serverInfo": {"name": "lab-classifier-mcp", "version": "1.0"}}
+                  elif meth == "tools/list": r = {"tools": TOOLS}
+                  elif meth == "tools/call" and EXTRA and (m.get("params") or {}).get("name") == "estimateCost":
+                      p = ((m.get("params") or {}).get("arguments") or {}).get("procedure", "")
+                      r = {"content": [{"type": "text", "text": json.dumps({"procedure": p, "estimate": "$25", "servedBy": "NEW MCP tool v2", **net(ev)})}], "isError": False}
+                  elif meth == "tools/call":
+                      q = ((m.get("params") or {}).get("arguments") or {}).get("question", "")
+                      cat = "dental" if "tooth" in q.lower() or "dent" in q.lower() else "medical"
+                      r = {"content": [{"type": "text", "text": json.dumps({"question": q, "category": cat,
+                           "servedBy": "Classifier MCP (internal ALB, tool account)", **net(ev)})}], "isError": False}
+                  elif meth == "ping": r = {}
+                  else: return resp(200, {"jsonrpc": "2.0", "id": mid, "error": {"code": -32601, "message": "method not found"}})
+                  return resp(200, {"jsonrpc": "2.0", "id": mid, "result": r})
+              return resp(404, {"error": "not found", "path": path})
+  BackendPerm:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref Backend
+      Action: lambda:InvokeFunction
+      Principal: elasticloadbalancing.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      # The target group is created after this permission (it registers the function), so it cannot be referenced;
+      # limit invocation to target groups in this account instead.
+      SourceArn: !Sub arn:aws:elasticloadbalancing:${AWS::Region}:${AWS::AccountId}:targetgroup/*
+
+  # ---------------- internal ALB in SHARED subnets (app team only creates ALB + SG)
+  AlbSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: internal tools ALB - 443 only from the hub Lattice door range
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 10.0.0.0/16, Description: hub lattice door}
+      Tags: [{Key: Name, Value: lab-sg-tools-alb}]
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: lab-tools-internal
+      Scheme: internal
+      Type: application
+      Subnets: !Ref SubnetIds
+      SecurityGroups: [!Ref AlbSg]
+      LoadBalancerAttributes:
+        - {Key: routing.http.drop_invalid_header_fields.enabled, Value: "true"}
+  Tg:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: BackendPerm
+    Properties:
+      TargetType: lambda
+      Targets: [{Id: !GetAtt Backend.Arn}]
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 443
+      Protocol: HTTPS
+      SslPolicy: ELBSecurityPolicy-TLS13-1-2-2021-06
+      Certificates: [{CertificateArn: !Ref CertificateArn}]
+      DefaultActions:                   # nothing reaches the backend without matching a rule below
+        - Type: fixed-response
+          FixedResponseConfig: {StatusCode: "404", ContentType: application/json, MessageBody: '{"error":"not found"}'}
+  McpRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 10
+      Conditions: [{Field: path-pattern, PathPatternConfig: {Values: [/mcp]}}]
+      Actions:
+          - Type: jwt-validation        # every rule validates the token before it forwards
+            Order: 1
+            JwtValidationConfig:
+              Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${ToolPool}
+              JwksEndpoint: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${ToolPool}/.well-known/jwks.json
+              AdditionalClaims:
+                - {Format: space-separated-values, Name: scope, Values: [lab-tools/invoke]}
+                - {Format: single-string, Name: client_id, Values: [!Ref GatewayClient]}   # only the Gateway's client
+          - Type: forward
+            Order: 2
+            TargetGroupArn: !Ref Tg
+  ApiRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref Listener
+      Priority: 20
+      Conditions: [{Field: path-pattern, PathPatternConfig: {Values: [/api/*]}}]
+      Actions:
+          - Type: jwt-validation        # every rule validates the token before it forwards
+            Order: 1
+            JwtValidationConfig:
+              Issuer: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${ToolPool}
+              JwksEndpoint: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${ToolPool}/.well-known/jwks.json
+              AdditionalClaims:
+                - {Format: space-separated-values, Name: scope, Values: [lab-tools/invoke]}
+                - {Format: single-string, Name: client_id, Values: [!Ref GatewayClient]}   # only the Gateway's client
+          - Type: forward
+            Order: 2
+            TargetGroupArn: !Ref Tg
+
+Outputs:
+  AlbDns:          {Value: !GetAtt Alb.DNSName, Description: "Hub resource configuration domain (routing domain)"}
+  ToolPoolId:      {Value: !Ref ToolPool}
+  ToolClientId:    {Value: !Ref GatewayClient}
+  ToolDiscoveryUrl: {Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${ToolPool}/.well-known/openid-configuration"}
+  McpRuleArn:      {Value: !Ref McpRule}
+  ToolTokenUrl:    {Value: !Sub "https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com/oauth2/token"}

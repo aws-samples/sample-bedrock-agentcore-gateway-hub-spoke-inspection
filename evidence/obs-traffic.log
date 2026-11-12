@@ -1,0 +1,21 @@
+
+==> G1 public: employee-api___getEmployee
+HTTP 200 {"jsonrpc":"2.0","id":21,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"4242\",
+
+==> G2 public: classifier (internal ALB)
+HTTP 200 {"jsonrpc":"2.0","id":22,"result":{"content":[{"type":"text","text":"{\"question\": \"dental?\", \"category\":
+
+==> G3 public: tools-rest (internal ALB)
+HTTP 200 {"jsonrpc":"2.0","id":23,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"9\",\"p
+
+==> G4 private ingress: classifier via VPCE
+HTTP 200 {"jsonrpc":"2.0","id":24,"result":{"content":[{"type":"text","text":"{\"question\": \"tooth\", \"category\": \
+
+==> G5 private ingress: WAF XSS in tool-call ARGUMENTS (body), no bad header
+HTTP 403 {"jsonrpc":"2.0","id":25,"error":{"code":-32002,"message":"Forbidden - Request blocked by AWS WAF"}}
+
+==> G6 public: SQLi string in tool-call ARGUMENTS (body)
+HTTP 200 {"jsonrpc":"2.0","id":26,"result":{"content":[{"type":"text","text":"{\"question\": \"1 OR 1=1; DROP TABLE use
+
+==> G7 public: XSS in tool-call ARGUMENTS (body)
+HTTP 403 {"jsonrpc":"2.0","id":27,"error":{"code":-32002,"message":"Forbidden - Request blocked by AWS WAF"}}

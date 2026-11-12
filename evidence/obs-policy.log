@@ -1,0 +1,11 @@
+
+==> S0 before policy
+  PUBLIC: HTTP 200 {"jsonrpc":"2.0","id":31,"result":{"tools":[{"inputSchema":{"type":"object","properties":{"employeeId":{"type" | VPCE: HTTP 200 {"jsonrpc":"2.0","id":31,"result":{"tools":[{"inputSchema":{"type":"object","properties":{"employeeId":{"type"
+
+==> S1 put-resource-policy (aws:SourceVpce = vpce-032662a3895d1761f)
+  +  32s  PUBLIC: HTTP 403 {"jsonrpc":"2.0","id":31,"error":{"code":-32002,"message":"Authorization error - Insufficient permissions"}} | VPCE: HTTP 200 {"jsonrpc":"2.0","id":31,"result":{"tools":[{"input
+  +  65s  PUBLIC: HTTP 403 {"jsonrpc":"2.0","id":31,"error":{"code":-32002,"message":"Authorization error - Insufficient permissions"}} | VPCE: HTTP 200 {"jsonrpc":"2.0","id":31,"result":{"tools":[{"input
+  +  97s  PUBLIC: HTTP 403 {"jsonrpc":"2.0","id":31,"error":{"code":-32002,"message":"Authorization error - Insufficient permissions"}} | VPCE: HTTP 200 {"jsonrpc":"2.0","id":31,"result":{"tools":[{"input
+
+==> S2 delete-resource-policy (restore public path for the remaining lab tests)
+  +  31s  PUBLIC: HTTP 200 {"jsonrpc":"2.0","id":31,"result":{"tools":[{"inputSchema":{"type":"object","properties":{"

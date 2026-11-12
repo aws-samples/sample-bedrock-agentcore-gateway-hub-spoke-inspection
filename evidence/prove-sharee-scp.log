@@ -1,0 +1,41 @@
+
+==> S0 SCP on the AgentCore account (<AGENTCORE_ACCOUNT_ID>)
+{"Version":"2012-10-17","Statement":[
+ {"Sid":"NoOwnEndpointsToSharedResourceConfigurations","Effect":"Deny","Action":"ec2:CreateVpcEndpoint",
+  "Resource":"arn:aws:vpc-lattice:*:*:resourceconfiguration/*"},
+ {"Sid":"ServiceNetworkAssociationsOnlyThroughAwsServices","Effect":"Deny","Action":"vpc-lattice:CreateServiceNetworkResourceAssociation",
+  "Resource":"*","Condition":{"BoolIfExists":{"aws:ViaAWSService":"false"}}}]}
+  attached p-wil8jjeo; waiting 90s for propagation
+
+==> S1 resource endpoint for the shared API resource configuration in a temporary VPC (expect denied)
+  
+aws: [ERROR]: An error occurred (UnauthorizedOperation) when calling the CreateVpcEndpoint operation: You are not authorized to perform this operation. User: arn:aws:sts::<AGENTCORE_ACCOUNT_ID>:assumed-role/OrganizationAccountAccessRole/botocore-session-1794424655 is not authorized to perform: ec2:CreateVpcE
+
+==> S2 own service network, then associate the shared resource configuration directly (expect denied)
+  
+aws: [ERROR]: An error occurred (AccessDeniedException) when calling the CreateServiceNetworkResourceAssociation operation: User: arn:aws:sts::<AGENTCORE_ACCOUNT_ID>:assumed-role/OrganizationAccountAccessRole/botocore-session-1794424655 is not authorized to perform: vpc-lattice:CreateServiceNetworkResourceAs
+
+==> S3 Gateway target on the same resource configuration (expect READY and a working call)
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: READY
+  {"jsonrpc":"2.0","id":71,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"71\",\"name\":\"Demo Employee\",\"plan\":\"Gold PPO\",\"status\":\"ACTIVE\",\"servedBy\":\"lab-employee-api in account <TOOL_ACCOUNT_ID>\",\"sourceIp\":\"10.0.2.176\",\"vpce\":\"vpce-047187bbfc02e7093\"
+
+==> S4 CloudTrail in the network account: each association by the sharee is logged as ...BySharee (alarm on it)
+2026-11-11T14:46:03-05:00	None
+2026-11-11T14:26:42-05:00	None
+2026-11-11T14:14:46-05:00	None
+
+==> S5 detach and delete the SCP, delete the temporary resources
+FullAWSAccess

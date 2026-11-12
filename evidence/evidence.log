@@ -1,0 +1,51 @@
+
+==> E0 VPC Lattice association per target (targets on the same resource configuration: shared or separate association?)
+  employee-api  rcfg=rcfg-077454219c1bcbafe  association=snra-0cd39dd06c7e688dc
+  classifier  rcfg=rcfg-02f630015e18df028  association=snra-0e9b1c85a205d5626
+  tools-rest  rcfg=rcfg-02f630015e18df028  association=snra-0f60a8c398fb0c036
+  benefits-api  rcfg=rcfg-077454219c1bcbafe  association=snra-07b7a323fd65b823d
+---------------------------------------------------------------
+|           ListServiceNetworkResourceAssociations            |
++-------------------------+-------------------------+---------+
+|           id            |          rcfg           | status  |
++-------------------------+-------------------------+---------+
+|  snra-07b7a323fd65b823d |  lab-rcfg-employee-api  |  ACTIVE |
+|  snra-0cd39dd06c7e688dc |  lab-rcfg-employee-api  |  ACTIVE |
+|  snra-0f60a8c398fb0c036 |  lab-rcfg-tools-alb     |  ACTIVE |
+|  snra-0e9b1c85a205d5626 |  lab-rcfg-tools-alb     |  ACTIVE |
++-------------------------+-------------------------+---------+
+
+==> E1 Door lives in the HUB, in hub-owned subnets (not shared)
+--------------------------------
+|     ListResourceGateways     |
++--------+---------------------+
+|   ips  |        name         |
++--------+---------------------+
+|  4     |  lab-hub-door       |
++--------+---------------------+
+||           subnets          ||
+|+----------------------------+|
+||  subnet-0380b128e0227fe9d  ||
+||  subnet-00c014f75b44843c2  ||
+||  subnet-04592edf47277dd16  ||
+|+----------------------------+|
+
+==> E2 AgentCore account sees the SHARED resource configurations and the shared agent subnets, but no resource gateway
+  (no resource gateway should be listed above)
+----------------------------------------------------------------------------------------------------------------------------------
+|                                                          ListResources                                                         |
++------------------------------------------------------------------------------------------+-------------------------------------+
+|                                            arn                                           |                type                 |
++------------------------------------------------------------------------------------------+-------------------------------------+
+|  arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-077454219c1bcbafe |  vpc-lattice:ResourceConfiguration  |
+|  arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-02f630015e18df028 |  vpc-lattice:ResourceConfiguration  |
+|  arn:aws:ec2:us-east-1:<NETWORK_ACCOUNT_ID>:subnet/subnet-0f8eda7b11fa7814c                      |  ec2:Subnet                         |
+|  arn:aws:ec2:us-east-1:<NETWORK_ACCOUNT_ID>:subnet/subnet-09a9f790ebf0363b2                      |  ec2:Subnet                         |
++------------------------------------------------------------------------------------------+-------------------------------------+
+
+==> E3 Firewall saw the flow (door 10.0.x.x -> API account 10.12.x.x:443)
+  2026-11-11T19:22:22 10.0.3.87 -> 10.12.2.117 443 | app tls | pkts 15 bytes 4393 | state closed
+  2026-11-11T19:22:24 10.0.3.87 -> 10.12.2.117 443 | app tls | pkts 15 bytes 4411 | state closed
+  2026-11-11T19:22:24 10.0.3.87 -> 10.12.2.117 443 | app tls | pkts 15 bytes 4381 | state closed
+  2026-11-11T19:22:24 10.0.3.87 -> 10.12.2.117 443 | app tls | pkts 15 bytes 4290 | state closed
+  2026-11-11T19:22:21 10.0.1.12 -> 10.12.1.58 443 | app tls | pkts 28 bytes 3269 | state closed

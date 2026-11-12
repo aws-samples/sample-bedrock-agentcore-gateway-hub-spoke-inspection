@@ -1,0 +1,496 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  LAB - NETWORK (HUB) ACCOUNT. Models a central network account: it owns every VPC, subnet and
+  the Transit Gateway; spoke VPCs are shared to application accounts with AWS RAM; all inter-VPC traffic is inspected
+  (AWS Network Firewall stands in for a third-party firewall); central VPC endpoints are owned by this account;
+  the VPC Lattice resource gateway lives in network-account-owned, NON-shared subnets and only the
+  resource configurations are shared to the AgentCore account.
+  Deploy in the network account, in us-east-1 (the subnets use us-east-1 Availability Zone IDs). Lab only - broad, not production hardened.
+
+Parameters:
+  AgentCoreAccountId:
+    Type: String
+    AllowedPattern: "^[0-9]{12}$"
+    Description: AgentCore account ID (runs AgentCore Gateway)
+  ApiAccountId:
+    Type: String
+    AllowedPattern: "^[0-9]{12}$"
+    Description: Tool/API account ID (owns the private REST API and the internal ALB)
+  FirewallMode:
+    Type: String
+    Default: allow
+    AllowedValues: [allow, block-return, block-egress]
+    Description: >
+      allow = normal. block-return = pass door->API but drop the API's RETURN packets (proves the
+      return path is inspected by the firewall; T2 must fail and the FW must log to_client drops).
+      block-egress = allow, but WITHOUT the tool-VPC -> internet rule (sid 100010): proves the internal ALB
+      needs inspected egress to fetch its IdP signing keys (JWKS).
+  ToolsAlbDns:
+    Type: String
+    Default: ""
+    Description: Internal ALB DNS of a tool account (from 04-spoke2-alb-backend.yaml). Empty = not created yet.
+
+  ApprovedGatewayArns:
+    Type: String
+    Default: ""
+    Description: >
+      Comma-separated AgentCore Gateway ARNs that the Gateway interface endpoint allows (endpoint policy).
+      Empty = any gateway in the AgentCore account (run-lab.sh deploy sets the real ARN once the Gateway exists).
+  ExtraApiAccountId:
+    Type: String
+    Default: ""
+    Description: >
+      Optional second account whose private APIs the execute-api endpoint may call (endpoint policy). The tool account is
+      always allowed. run-lab.sh passes the AgentCore account, which hosts the second API in prove-multi.
+
+  AgentRuntimeEndpoints:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >
+      true = network team adds what a VPC-mode AgentCore Runtime (direct code deploy) needs in the agent VPC without
+      internet: an S3 gateway endpoint scoped to the AgentCore code-artifact buckets, and a CloudWatch Logs interface endpoint.
+
+Conditions:
+  BlockReturn: !Equals [!Ref FirewallMode, block-return]
+  BlockEgress: !Equals [!Ref FirewallMode, block-egress]
+  HasToolsAlb: !Not [!Equals [!Ref ToolsAlbDns, ""]]
+  HasRuntimeEndpoints: !Equals [!Ref AgentRuntimeEndpoints, "true"]
+  HasGatewayArns: !Not [!Equals [!Ref ApprovedGatewayArns, ""]]
+  HasExtraApiAccount: !Not [!Equals [!Ref ExtraApiAccountId, ""]]
+
+Resources:
+  # ------------------------------------------------------------------ VPCs
+  CentralVpc:            # resource gateway VPC: not shared, holds only the resource gateway (door) and TGW subnets
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{Key: Name, Value: lab-central-vpc}]
+  InspectionVpc:         # security VPC (AWS Network Firewall stands in for a third-party firewall)
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.1.0.0/16
+      Tags: [{Key: Name, Value: lab-inspection-vpc}]
+  Spoke1Vpc:             # AgentCore account app VPC (shared) - used only for the negative test
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.11.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{Key: Name, Value: lab-spoke1-app-vpc}]
+  Spoke2Vpc:             # API account app VPC (shared)
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.12.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{Key: Name, Value: lab-spoke2-app-vpc}]
+
+  # ------------------------------------------------------------------ Subnets
+  # Door subnets: hub-OWNED, NEVER shared. 3 AZ IDs to maximise AZ overlap with AgentCore.
+  CentralDoorA: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref CentralVpc, CidrBlock: 10.0.1.0/24, AvailabilityZoneId: use1-az1, Tags: [{Key: Name, Value: lab-central-door-az1}]}}
+  CentralDoorB: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref CentralVpc, CidrBlock: 10.0.2.0/24, AvailabilityZoneId: use1-az2, Tags: [{Key: Name, Value: lab-central-door-az2}]}}
+  CentralDoorC: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref CentralVpc, CidrBlock: 10.0.3.0/24, AvailabilityZoneId: use1-az4, Tags: [{Key: Name, Value: lab-central-door-az4}]}}
+  CentralTgwA:  {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref CentralVpc, CidrBlock: 10.0.250.0/28, AvailabilityZoneId: use1-az1, Tags: [{Key: Name, Value: lab-central-tgw-az1}]}}
+  CentralTgwB:  {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref CentralVpc, CidrBlock: 10.0.250.16/28, AvailabilityZoneId: use1-az2, Tags: [{Key: Name, Value: lab-central-tgw-az2}]}}
+  CentralTgwC:  {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref CentralVpc, CidrBlock: 10.0.250.32/28, AvailabilityZoneId: use1-az4, Tags: [{Key: Name, Value: lab-central-tgw-az4}]}}
+
+  # Inspection VPC - single AZ to keep the lab simple (appliance mode keeps flows symmetric)
+  InspTgwSubnet: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref InspectionVpc, CidrBlock: 10.1.0.0/28, AvailabilityZoneId: use1-az1, Tags: [{Key: Name, Value: lab-insp-tgw}]}}
+  InspFwSubnet:  {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref InspectionVpc, CidrBlock: 10.1.1.0/28, AvailabilityZoneId: use1-az1, Tags: [{Key: Name, Value: lab-insp-fw}]}}
+  InspNatSubnet: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref InspectionVpc, CidrBlock: 10.1.2.0/28, AvailabilityZoneId: use1-az1, Tags: [{Key: Name, Value: lab-insp-nat}]}}
+  # Central internet egress (everything leaving a VPC goes through the firewall). Needed so an
+  # internal ALB can fetch its IdP JWKS and the app VPCs reach public AWS endpoints - all inspected.
+  InspIgw: {Type: AWS::EC2::InternetGateway, Properties: {Tags: [{Key: Name, Value: lab-insp-igw}]}}
+  InspIgwAttach: {Type: AWS::EC2::VPCGatewayAttachment, Properties: {VpcId: !Ref InspectionVpc, InternetGatewayId: !Ref InspIgw}}
+  NatEip: {Type: AWS::EC2::EIP, Properties: {Domain: vpc}}
+  NatGw: {Type: AWS::EC2::NatGateway, Properties: {SubnetId: !Ref InspNatSubnet, AllocationId: !GetAtt NatEip.AllocationId, Tags: [{Key: Name, Value: lab-central-nat}]}}
+
+  # Spoke app subnets - shared to spoke accounts via RAM
+  Spoke1AppA: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref Spoke1Vpc, CidrBlock: 10.11.1.0/24, AvailabilityZoneId: use1-az1, Tags: [{Key: Name, Value: lab-spoke1-app-az1-SHARED}]}}
+  Spoke1AppB: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref Spoke1Vpc, CidrBlock: 10.11.2.0/24, AvailabilityZoneId: use1-az2, Tags: [{Key: Name, Value: lab-spoke1-app-az2-SHARED}]}}
+  Spoke2AppA: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref Spoke2Vpc, CidrBlock: 10.12.1.0/24, AvailabilityZoneId: use1-az1, Tags: [{Key: Name, Value: lab-spoke2-app-az1-SHARED}]}}
+  Spoke2AppB: {Type: AWS::EC2::Subnet, Properties: {VpcId: !Ref Spoke2Vpc, CidrBlock: 10.12.2.0/24, AvailabilityZoneId: use1-az2, Tags: [{Key: Name, Value: lab-spoke2-app-az2-SHARED}]}}
+
+  # ------------------------------------------------------------------ Transit Gateway
+  Tgw:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      Description: lab-tgw
+      DefaultRouteTableAssociation: disable
+      DefaultRouteTablePropagation: disable
+      DnsSupport: enable
+      Tags: [{Key: Name, Value: lab-tgw}]
+
+  AttCentral:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: {TransitGatewayId: !Ref Tgw, VpcId: !Ref CentralVpc, SubnetIds: [!Ref CentralTgwA, !Ref CentralTgwB, !Ref CentralTgwC], Tags: [{Key: Name, Value: lab-att-central}]}
+  AttSpoke1:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: {TransitGatewayId: !Ref Tgw, VpcId: !Ref Spoke1Vpc, SubnetIds: [!Ref Spoke1AppA, !Ref Spoke1AppB], Tags: [{Key: Name, Value: lab-att-spoke1}]}
+  AttSpoke2:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: {TransitGatewayId: !Ref Tgw, VpcId: !Ref Spoke2Vpc, SubnetIds: [!Ref Spoke2AppA, !Ref Spoke2AppB], Tags: [{Key: Name, Value: lab-att-spoke2}]}
+  AttInspection:
+    Type: AWS::EC2::TransitGatewayVpcAttachment
+    Properties:
+      TransitGatewayId: !Ref Tgw
+      VpcId: !Ref InspectionVpc
+      SubnetIds: [!Ref InspTgwSubnet]
+      Options: {ApplianceModeSupport: enable}
+      Tags: [{Key: Name, Value: lab-att-inspection}]
+
+  # Spoke route table: everything goes to inspection first
+  TgwRtSpokes:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties: {TransitGatewayId: !Ref Tgw, Tags: [{Key: Name, Value: lab-tgw-rt-spokes}]}
+  TgwRtSpokesDefault:
+    Type: AWS::EC2::TransitGatewayRoute
+    Properties: {TransitGatewayRouteTableId: !Ref TgwRtSpokes, DestinationCidrBlock: 0.0.0.0/0, TransitGatewayAttachmentId: !Ref AttInspection}
+  AssocCentral: {Type: AWS::EC2::TransitGatewayRouteTableAssociation, Properties: {TransitGatewayRouteTableId: !Ref TgwRtSpokes, TransitGatewayAttachmentId: !Ref AttCentral}}
+  AssocSpoke1:  {Type: AWS::EC2::TransitGatewayRouteTableAssociation, Properties: {TransitGatewayRouteTableId: !Ref TgwRtSpokes, TransitGatewayAttachmentId: !Ref AttSpoke1}}
+  AssocSpoke2:  {Type: AWS::EC2::TransitGatewayRouteTableAssociation, Properties: {TransitGatewayRouteTableId: !Ref TgwRtSpokes, TransitGatewayAttachmentId: !Ref AttSpoke2}}
+
+  # Inspection route table: after the firewall, deliver to the right VPC
+  TgwRtInspection:
+    Type: AWS::EC2::TransitGatewayRouteTable
+    Properties: {TransitGatewayId: !Ref Tgw, Tags: [{Key: Name, Value: lab-tgw-rt-inspection}]}
+  AssocInspection: {Type: AWS::EC2::TransitGatewayRouteTableAssociation, Properties: {TransitGatewayRouteTableId: !Ref TgwRtInspection, TransitGatewayAttachmentId: !Ref AttInspection}}
+  PropCentral: {Type: AWS::EC2::TransitGatewayRouteTablePropagation, Properties: {TransitGatewayRouteTableId: !Ref TgwRtInspection, TransitGatewayAttachmentId: !Ref AttCentral}}
+  PropSpoke1:  {Type: AWS::EC2::TransitGatewayRouteTablePropagation, Properties: {TransitGatewayRouteTableId: !Ref TgwRtInspection, TransitGatewayAttachmentId: !Ref AttSpoke1}}
+  PropSpoke2:  {Type: AWS::EC2::TransitGatewayRouteTablePropagation, Properties: {TransitGatewayRouteTableId: !Ref TgwRtInspection, TransitGatewayAttachmentId: !Ref AttSpoke2}}
+
+  # ------------------------------------------------------------------ Network Firewall (Palo Alto stand-in)
+  FwLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: /lab/network-firewall, RetentionInDays: 7}
+  FwRuleGroup:
+    Type: AWS::NetworkFirewall::RuleGroup
+    Properties:
+      RuleGroupName: lab-allow-door-to-api
+      Type: STATEFUL
+      Capacity: 100
+      RuleGroup:
+        StatefulRuleOptions: {RuleOrder: STRICT_ORDER}
+        RuleVariables:
+          IPSets:
+            RGW_NET:  {Definition: [10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24]}   # resource gateway subnets only
+            TOOL_NET: {Definition: [10.12.0.0/16]}                             # tool account VPC (ALB, execute-api endpoint)
+            ALB_NET:  {Definition: [10.12.1.0/24, 10.12.2.0/24]}               # subnets that hold the internal ALB nodes
+        RulesSource:
+          # Strict order: rules run top to bottom and the first match decides. A pass match exempts the rest of
+          # that flow from every other rule, which is why replies of a passed flow are not dropped. Packets that
+          # match no rule get the policy's default actions (aws:drop_established + aws:alert_established).
+          RulesString: !If
+            - BlockReturn
+            - |
+              # PROOF MODE (check 3): drop the API's replies BEFORE the pass rule can match the flow.
+              drop tcp $TOOL_NET 443 -> $RGW_NET any (msg:"PROOF return path blocked"; flow:to_client; sid:100098; rev:2;)
+              pass tcp $RGW_NET any -> $TOOL_NET 443 (msg:"ALLOW resource gateway -> tool VPC 443"; flow:to_server; sid:100001; rev:4;)
+              pass tls $ALB_NET any -> any 443 (msg:"ALLOW ALB -> identity provider JWKS"; tls.sni; content:"cognito-idp.us-east-1.amazonaws.com"; nocase; startswith; endswith; flow:to_server; sid:100010; rev:2;)
+            - !If
+              - BlockEgress
+              - |
+                # PROOF MODE (check 8): no JWKS egress rule; the ALB's TLS to the identity provider hits the default drop.
+                pass tcp $RGW_NET any -> $TOOL_NET 443 (msg:"ALLOW resource gateway -> tool VPC 443"; flow:to_server; sid:100001; rev:4;)
+              - |
+                pass tcp $RGW_NET any -> $TOOL_NET 443 (msg:"ALLOW resource gateway -> tool VPC 443"; flow:to_server; sid:100001; rev:4;)
+                pass tls $ALB_NET any -> any 443 (msg:"ALLOW ALB -> identity provider JWKS"; tls.sni; content:"cognito-idp.us-east-1.amazonaws.com"; nocase; startswith; endswith; flow:to_server; sid:100010; rev:2;)
+  FwPolicy:
+    Type: AWS::NetworkFirewall::FirewallPolicy
+    Properties:
+      FirewallPolicyName: lab-fw-policy
+      FirewallPolicy:
+        StatelessDefaultActions: ["aws:forward_to_sfe"]
+        StatelessFragmentDefaultActions: ["aws:forward_to_sfe"]
+        StatefulEngineOptions: {RuleOrder: STRICT_ORDER}
+        # Drop established: drops client-to-server packets of established connections that no rule passed, and lets
+        # the TCP handshake through so TLS rules can see the SNI. Alert established logs what it drops.
+        StatefulDefaultActions: ["aws:drop_established", "aws:alert_established"]
+        StatefulRuleGroupReferences:
+          - ResourceArn: !GetAtt FwRuleGroup.RuleGroupArn
+            Priority: 100
+  Firewall:
+    Type: AWS::NetworkFirewall::Firewall
+    Properties:
+      FirewallName: lab-inspection-fw
+      FirewallPolicyArn: !GetAtt FwPolicy.FirewallPolicyArn
+      VpcId: !Ref InspectionVpc
+      SubnetMappings: [{SubnetId: !Ref InspFwSubnet}]
+  FwLogging:
+    Type: AWS::NetworkFirewall::LoggingConfiguration
+    Properties:
+      FirewallArn: !GetAtt Firewall.FirewallArn
+      LoggingConfiguration:
+        LogDestinationConfigs:
+          - {LogType: FLOW,  LogDestinationType: CloudWatchLogs, LogDestination: {logGroup: !Ref FwLogGroup}}
+          - {LogType: ALERT, LogDestinationType: CloudWatchLogs, LogDestination: {logGroup: !Ref FwLogGroup}}
+
+  # ------------------------------------------------------------------ VPC route tables
+  RtCentralDoor:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref CentralVpc, Tags: [{Key: Name, Value: lab-rt-central-door}]}
+  RtCentralDoorToTgw:
+    Type: AWS::EC2::Route
+    DependsOn: AttCentral
+    Properties: {RouteTableId: !Ref RtCentralDoor, DestinationCidrBlock: 10.0.0.0/8, TransitGatewayId: !Ref Tgw}
+  RtaDoorA: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtCentralDoor, SubnetId: !Ref CentralDoorA}}
+  RtaDoorB: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtCentralDoor, SubnetId: !Ref CentralDoorB}}
+  RtaDoorC: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtCentralDoor, SubnetId: !Ref CentralDoorC}}
+
+  RtSpoke1:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref Spoke1Vpc, Tags: [{Key: Name, Value: lab-rt-spoke1}]}
+  RtSpoke1ToTgw:
+    Type: AWS::EC2::Route
+    DependsOn: AttSpoke1
+    Properties: {RouteTableId: !Ref RtSpoke1, DestinationCidrBlock: 10.0.0.0/8, TransitGatewayId: !Ref Tgw}
+  RtaS1A: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtSpoke1, SubnetId: !Ref Spoke1AppA}}
+  RtaS1B: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtSpoke1, SubnetId: !Ref Spoke1AppB}}
+
+  RtSpoke2:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref Spoke2Vpc, Tags: [{Key: Name, Value: lab-rt-spoke2}]}
+  RtSpoke2ToTgw:
+    Type: AWS::EC2::Route
+    DependsOn: AttSpoke2
+    Properties: {RouteTableId: !Ref RtSpoke2, DestinationCidrBlock: 10.0.0.0/8, TransitGatewayId: !Ref Tgw}
+  RtSpoke2Default:
+    Type: AWS::EC2::Route
+    DependsOn: AttSpoke2
+    Properties: {RouteTableId: !Ref RtSpoke2, DestinationCidrBlock: 0.0.0.0/0, TransitGatewayId: !Ref Tgw}
+  RtaS2A: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtSpoke2, SubnetId: !Ref Spoke2AppA}}
+  RtaS2B: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtSpoke2, SubnetId: !Ref Spoke2AppB}}
+
+  # Inspection: TGW subnet -> firewall endpoint; firewall subnet -> back to TGW
+  RtInspTgw:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref InspectionVpc, Tags: [{Key: Name, Value: lab-rt-insp-tgw}]}
+  RtInspTgwToFw:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RtInspTgw
+      DestinationCidrBlock: 0.0.0.0/0
+      VpcEndpointId: !Select [1, !Split [":", !Select [0, !GetAtt Firewall.EndpointIds]]]
+  RtaInspTgw: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtInspTgw, SubnetId: !Ref InspTgwSubnet}}
+  RtInspFw:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref InspectionVpc, Tags: [{Key: Name, Value: lab-rt-insp-fw}]}
+  RtInspFwToTgw:
+    Type: AWS::EC2::Route
+    DependsOn: AttInspection
+    Properties: {RouteTableId: !Ref RtInspFw, DestinationCidrBlock: 10.0.0.0/8, TransitGatewayId: !Ref Tgw}
+  RtaInspFw: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtInspFw, SubnetId: !Ref InspFwSubnet}}
+  RtInspFwToNat:
+    Type: AWS::EC2::Route
+    Properties: {RouteTableId: !Ref RtInspFw, DestinationCidrBlock: 0.0.0.0/0, NatGatewayId: !Ref NatGw}
+  RtInspNat:
+    Type: AWS::EC2::RouteTable
+    Properties: {VpcId: !Ref InspectionVpc, Tags: [{Key: Name, Value: lab-rt-insp-nat}]}
+  RtInspNatToIgw:
+    Type: AWS::EC2::Route
+    DependsOn: InspIgwAttach
+    Properties: {RouteTableId: !Ref RtInspNat, DestinationCidrBlock: 0.0.0.0/0, GatewayId: !Ref InspIgw}
+  RtInspNatReturnToFw:   # return traffic for the spokes goes back through the firewall (symmetric)
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RtInspNat
+      DestinationCidrBlock: 10.0.0.0/8
+      VpcEndpointId: !Select [1, !Split [":", !Select [0, !GetAtt Firewall.EndpointIds]]]
+  RtaInspNat: {Type: AWS::EC2::SubnetRouteTableAssociation, Properties: {RouteTableId: !Ref RtInspNat, SubnetId: !Ref InspNatSubnet}}
+
+  # ------------------------------------------------------------------ Central endpoint for the API (hub-owned)
+  # Participants cannot create interface endpoints in shared subnets, so the hub owns it.
+  ApiVpceSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: execute-api VPCE in spoke2 - allow 443 only from the door subnets
+      VpcId: !Ref Spoke2Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 10.0.0.0/16, Description: lattice door range}
+      Tags: [{Key: Name, Value: lab-sg-spoke2-execute-api-vpce}]
+  ApiVpce:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.execute-api
+      VpcId: !Ref Spoke2Vpc
+      SubnetIds: [!Ref Spoke2AppA, !Ref Spoke2AppB]
+      SecurityGroupIds: [!Ref ApiVpceSg]
+      PrivateDnsEnabled: false
+      # Endpoint policy: the endpoint can call only private APIs in approved accounts.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ApprovedApiAccountsOnly
+            Effect: Allow
+            Principal: "*"
+            Action: execute-api:Invoke
+            Resource:
+              - !Sub "arn:aws:execute-api:${AWS::Region}:${ApiAccountId}:*"
+              - !If [HasExtraApiAccount, !Sub "arn:aws:execute-api:${AWS::Region}:${ExtraApiAccountId}:*", !Ref AWS::NoValue]
+
+  # ------------------------------------------------------------------ Lattice door (hub-owned, NOT shared subnet)
+  DoorSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Lattice resource gateway (door) - outbound 443 to API account only
+      VpcId: !Ref CentralVpc
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 10.12.0.0/16, Description: API account}
+      Tags: [{Key: Name, Value: lab-sg-door}]
+  ResourceGateway:
+    Type: AWS::VpcLattice::ResourceGateway
+    Properties:
+      Name: lab-hub-door
+      VpcIdentifier: !Ref CentralVpc
+      SubnetIds: [!Ref CentralDoorA, !Ref CentralDoorB, !Ref CentralDoorC]
+      SecurityGroupIds: [!Ref DoorSg]
+      IpAddressType: IPV4
+      Ipv4AddressesPerEni: 4
+  # Address card: points at the execute-api VPCE DNS (the "routing domain" for self-managed).
+  # VPCE DnsEntries look like "Z7HUB...:vpce-xxx.execute-api.us-east-1.vpce.amazonaws.com".
+  ApiResourceConfig:
+    Type: AWS::VpcLattice::ResourceConfiguration
+    Properties:
+      Name: lab-rcfg-employee-api
+      ResourceConfigurationType: SINGLE
+      ResourceGatewayId: !Ref ResourceGateway
+      ProtocolType: TCP
+      PortRanges: ["443"]
+      ResourceConfigurationDefinition:
+        DnsResource:
+          DomainName: !Select [1, !Split [":", !Select [0, !GetAtt ApiVpce.DnsEntries]]]
+          IpAddressType: IPV4
+
+  # Address card #2: the tool account's internal ALB (one per backend ALB, not per tool). Same door.
+  ToolsResourceConfig:
+    Type: AWS::VpcLattice::ResourceConfiguration
+    Condition: HasToolsAlb
+    Properties:
+      Name: lab-rcfg-tools-alb
+      ResourceConfigurationType: SINGLE
+      ResourceGatewayId: !Ref ResourceGateway
+      ProtocolType: TCP
+      PortRanges: ["443"]
+      ResourceConfigurationDefinition:
+        DnsResource: {DomainName: !Ref ToolsAlbDns, IpAddressType: IPV4}
+
+  # ------------------------------------------------------------------ Private INGRESS to the Gateway (owned by the network
+  # account, like other central interface endpoints). Callers in the shared spoke1 subnets reach the Gateway without internet.
+  GatewayVpceSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: AgentCore Gateway VPCE in spoke1 - 443 from spoke1 app subnets
+      VpcId: !Ref Spoke1Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 10.11.0.0/16, Description: spoke1 agents}
+      Tags: [{Key: Name, Value: lab-sg-spoke1-gateway-vpce}]
+  GatewayVpce:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.bedrock-agentcore.gateway
+      VpcId: !Ref Spoke1Vpc
+      SubnetIds: [!Ref Spoke1AppA, !Ref Spoke1AppB]
+      SecurityGroupIds: [!Ref GatewayVpceSg]
+      PrivateDnsEnabled: true
+      # Endpoint policy: callers in this VPC can reach only the approved gateways. Principal must be * because the
+      # Gateway uses bearer tokens, not SigV4.
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: ApprovedGatewaysOnly
+            Effect: Allow
+            Principal: "*"
+            Action: bedrock-agentcore:InvokeGateway
+            # Before the Gateway exists (first deploy), allow nothing; run-lab.sh redeploys with its ARN.
+            Resource: !If
+              - HasGatewayArns
+              - !Split [",", !Ref ApprovedGatewayArns]
+              - !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AgentCoreAccountId}:gateway/none-approved-yet"
+
+  # ------------------------------------------------------------------ Endpoints for AgentCore Runtime in the agent VPC (optional)
+  Spoke1S3GatewayEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: HasRuntimeEndpoints
+    Properties:
+      VpcEndpointType: Gateway
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref Spoke1Vpc
+      RouteTableIds: [!Ref RtSpoke1]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource:
+              - !Sub arn:aws:s3:::acr-code-*-${AWS::Region}-an
+              - !Sub arn:aws:s3:::acr-code-*-${AWS::Region}-an/*
+            Condition: {StringEquals: {aws:PrincipalServiceName: bedrock-agentcore.amazonaws.com}}
+  Spoke1LogsEndpointSg:
+    Type: AWS::EC2::SecurityGroup
+    Condition: HasRuntimeEndpoints
+    Properties:
+      GroupDescription: CloudWatch Logs VPCE in spoke1 - 443 from spoke1 app subnets
+      VpcId: !Ref Spoke1Vpc
+      SecurityGroupIngress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 10.11.0.0/16, Description: spoke1 agents}
+      Tags: [{Key: Name, Value: lab-sg-spoke1-logs-vpce}]
+  Spoke1LogsEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Condition: HasRuntimeEndpoints
+    Properties:
+      VpcEndpointType: Interface
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.logs
+      VpcId: !Ref Spoke1Vpc
+      SubnetIds: [!Ref Spoke1AppA, !Ref Spoke1AppB]
+      SecurityGroupIds: [!Ref Spoke1LogsEndpointSg]
+      PrivateDnsEnabled: true
+
+  # ------------------------------------------------------------------ RAM shares
+  ShareSpoke1Subnets:
+    Type: AWS::RAM::ResourceShare
+    Properties:
+      Name: lab-share-spoke1-subnets
+      AllowExternalPrincipals: false
+      Principals: [!Ref AgentCoreAccountId]
+      ResourceArns:
+        - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${Spoke1AppA}
+        - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${Spoke1AppB}
+  ShareSpoke2Subnets:
+    Type: AWS::RAM::ResourceShare
+    Properties:
+      Name: lab-share-spoke2-subnets
+      AllowExternalPrincipals: false
+      Principals: [!Ref ApiAccountId]
+      ResourceArns:
+        - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${Spoke2AppA}
+        - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${Spoke2AppB}
+  # Only the address card is shared to the AgentCore account - never the door subnet.
+  ShareAddressCard:
+    Type: AWS::RAM::ResourceShare
+    Properties:
+      Name: lab-share-address-card
+      AllowExternalPrincipals: false
+      Principals: [!Ref AgentCoreAccountId]
+      ResourceArns:
+        - !GetAtt ApiResourceConfig.Arn
+        - !If [HasToolsAlb, !GetAtt ToolsResourceConfig.Arn, !Ref AWS::NoValue]
+
+Outputs:
+  ApiVpceId:            {Value: !Ref ApiVpce, Description: "Pass to 02-spoke2-api.yaml"}
+  ApiVpceDns:           {Value: !Select [1, !Split [":", !Select [0, !GetAtt ApiVpce.DnsEntries]]]}
+  ResourceConfigArn:    {Value: !GetAtt ApiResourceConfig.Arn, Description: "Shared with the AgentCore account; used by run-lab.sh"}
+  ResourceGatewayArn:   {Value: !GetAtt ResourceGateway.Arn}
+  Spoke1VpcId:          {Value: !Ref Spoke1Vpc, Description: "Agent VPC ID (negative test, flow logs, probe and Runtime stacks)"}
+  Spoke1SharedSubnets:  {Value: !Join [",", [!Ref Spoke1AppA, !Ref Spoke1AppB]], Description: "Agent subnet IDs (negative test, probe and Runtime stacks)"}
+  FirewallLogGroup:     {Value: !Ref FwLogGroup}
+  ToolsResourceConfigArn: {Condition: HasToolsAlb, Value: !GetAtt ToolsResourceConfig.Arn}
+  GatewayVpceId:        {Value: !Ref GatewayVpce}
+  Spoke2VpcId:          {Value: !Ref Spoke2Vpc}
+  Spoke2SharedSubnets:  {Value: !Join [",", [!Ref Spoke2AppA, !Ref Spoke2AppB]]}
+  Spoke1RouteTableId:   {Value: !Ref RtSpoke1}

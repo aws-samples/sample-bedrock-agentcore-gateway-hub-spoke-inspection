@@ -1,0 +1,108 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  LAB - AGENTCORE ACCOUNT. Inbound security for the Gateway:
+  Cognito (machine-to-machine JWT) + a regional AWS WAF web ACL (replaces the per-ALB web ACLs)
+  + the Gateway execution role. The Gateway, credential providers, WAF association and the
+  self-managed VPC Lattice targets are created by run-lab.sh (AWS CLI and Python).
+  Deploy in the AgentCore account.
+
+Parameters:
+  DomainPrefix:
+    Type: String
+    Description: Globally unique Cognito hosted-domain prefix
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties: {UserPoolName: lab-gateway-inbound}
+  PoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: {UserPoolId: !Ref UserPool, Domain: !Ref DomainPrefix}
+  ResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: lab-gateway
+      Name: lab-gateway
+      Scopes: [{ScopeName: invoke, ScopeDescription: Invoke gateway tools}]
+  AgentClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: lab-agent-m2m
+      GenerateSecret: true
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [client_credentials]
+      AllowedOAuthScopes: [lab-gateway/invoke]
+      SupportedIdentityProviders: [COGNITO]
+
+  GatewayWebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: lab-gateway-waf
+      Scope: REGIONAL
+      DefaultAction: {Allow: {}}
+      VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: lab-gateway-waf}
+      Rules:
+        - Name: AWSCommon
+          Priority: 0
+          OverrideAction: {None: {}}
+          Statement: {ManagedRuleGroupStatement: {VendorName: AWS, Name: AWSManagedRulesCommonRuleSet}}
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: aws-common}
+        - Name: AWSKnownBadInputs
+          Priority: 1
+          OverrideAction: {None: {}}
+          Statement: {ManagedRuleGroupStatement: {VendorName: AWS, Name: AWSManagedRulesKnownBadInputsRuleSet}}
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: aws-known-bad-inputs}
+        - Name: RateLimit
+          Priority: 2
+          Action: {Block: {}}
+          Statement: {RateBasedStatement: {Limit: 500, AggregateKeyType: IP}}
+          VisibilityConfig: {SampledRequestsEnabled: true, CloudWatchMetricsEnabled: true, MetricName: rate-limit}
+
+  GatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lab-agentcore-gateway-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: bedrock-agentcore.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {aws:SourceAccount: !Ref AWS::AccountId}
+              ArnLike: {aws:SourceArn: !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:gateway/*"}
+      Policies:
+        - PolicyName: gateway-identity
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Scoped to the lab's own Gateways (each Gateway's workload identity has the Gateway's name) and
+              # credential providers. All lab names start with "lab-"; use exact names in your environment.
+              - Effect: Allow
+                Action:
+                  - bedrock-agentcore:GetWorkloadAccessToken
+                  - bedrock-agentcore:GetResourceApiKey
+                  - bedrock-agentcore:GetResourceOauth2Token
+                Resource:
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default/workload-identity/lab-*
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default/oauth2credentialprovider/lab-*
+                  - !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:token-vault/default/apikeycredentialprovider/lab-*
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:bedrock-agentcore-identity!default/oauth2/lab-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:bedrock-agentcore-identity!default/apikey/lab-*
+                  - !Sub arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:lab/tools-private-ca*   # private CA trust anchor
+
+Outputs:
+  UserPoolId:     {Value: !Ref UserPool}
+  ClientId:       {Value: !Ref AgentClient}
+  DiscoveryUrl:   {Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/openid-configuration"}
+  TokenUrl:       {Value: !Sub "https://${DomainPrefix}.auth.${AWS::Region}.amazoncognito.com/oauth2/token"}
+  WebAclArn:      {Value: !GetAtt GatewayWebAcl.Arn}
+  GatewayRoleArn: {Value: !GetAtt GatewayRole.Arn}

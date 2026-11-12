@@ -1,0 +1,50 @@
+
+==> M1 Hub stack fingerprint BEFORE onboarding API #2
+  lab-hub-network LastUpdatedTime: 2026-11-11T19:14:03.848000+00:00
+
+==> M2 API #2 (lab-benefits-api) in account <AGENTCORE_ACCOUNT_ID> - allows the SAME hub VPCE
+
+Waiting for changeset to be created..
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-api2-benefits
+
+==> M3 Gateway target #2 -> SAME resource configuration arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-077454219c1bcbafe
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: READY
+[
+    {
+        "domain": "c9b9mh3z4a.execute-api.us-east-1.amazonaws.com",
+        "resourceAssociationArn": "snra-07b7a323fd65b823d"
+    }
+]
+
+==> M4 tools/call benefits-api___getEmployee 777
+{
+    "jsonrpc": "2.0",
+    "id": 7,
+    "result": {
+        "isError": false,
+        "content": [
+            {
+                "type": "text",
+                "text": "{\"employeeId\":\"777\",\"name\":\"Demo Employee\",\"plan\":\"Gold PPO\",\"status\":\"ACTIVE\",\"servedBy\":\"lab-benefits-api in account <AGENTCORE_ACCOUNT_ID>\",\"sourceIp\":\"10.0.1.12\",\"vpce\":\"vpce-047187bbfc02e7093\",\"tokenClientId\":\"3k5l0orv77vuai8c96ih8bk6tk\"}"
+            }
+        ]
+    }
+}
+
+==> M5 Hub stack fingerprint AFTER (must be unchanged)
+  lab-hub-network LastUpdatedTime: 2026-11-11T19:14:03.848000+00:00
+  hub resource configurations: lab-rcfg-tools-alb	lab-rcfg-employee-api

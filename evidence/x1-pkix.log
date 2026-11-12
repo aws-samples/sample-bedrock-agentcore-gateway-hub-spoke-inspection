@@ -1,0 +1,24 @@
+X1 MCP server target to the internal ALB WITHOUT certificateConfigurations (expect FAILED, PKIX)
+{
+ "status": "FAILED",
+ "statusReasons": [
+  "Failed to connect and fetch tools from the provided MCP target server. Error - (certificate_unknown) PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target"
+ ]
+}
+PASS MCP server target without the CA fails certificate path validation
+X1b OpenAPI target WITHOUT certificateConfigurations: create succeeds? then what does a call return?
+  status: READY None
+PASS OpenAPI target without the CA reaches READY
+  call: 200 {"jsonrpc":"2.0","id":99,"result":{"content":[{"type":"text","text":"An internal error occurred. Please retry later."}],"isError":true}}
+PASS the call to the OpenAPI target without the CA returns an error result
+  cleanup MJPSJVI2TU True
+  cleanup PYBSEAGFT0 True
+-hub-spoke-inspected/repo/lab-code/.venv/lib/python3.12/site-packages/botocore/client.py", line 606, in _api_call
+    return self._make_api_call(operation_name, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/lab-code/.venv/lib/python3.12/site-packages/botocore/context.py", line 123, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "<repo>/lab-code/.venv/lib/python3.12/site-packages/botocore/client.py", line 1094, in _make_api_call
+    raise error_class(parsed_response, operation_name)
+botocore.errorfactory.ConflictException: An error occurred (ConflictException) when calling the CreateGatewayTarget operation: A target with name 'neg-no-ca' already exists in this gateway

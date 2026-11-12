@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  LAB - AGENTCORE ACCOUNT. A probe that stands in for the AgentCore Runtime / BFF calling the
+  Gateway from a SHARED subnet with no internet route. Proves private ingress through the hub-owned Gateway
+  interface VPC endpoint (private DNS). The app team only creates a Lambda + security group - no network changes.
+
+Parameters:
+  VpcId:     {Type: String, Description: shared agent VPC (owned by the network account)}
+  SubnetIds: {Type: CommaDelimitedList, Description: shared agent subnets (no internet route)}
+
+Resources:
+  ProbeSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: agent probe - egress 443 inside the VPC only (to the Gateway VPCE)
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 10.11.0.0/16, Description: HTTPS to the Gateway interface endpoint in the agent VPC}
+      Tags: [{Key: Name, Value: lab-sg-agent-probe}]
+  ProbeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement: [{Effect: Allow, Principal: {Service: lambda.amazonaws.com}, Action: sts:AssumeRole}]
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole]
+  Probe:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: lab-agent-probe
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt ProbeRole.Arn
+      Timeout: 60
+      VpcConfig: {SecurityGroupIds: [!Ref ProbeSg], SubnetIds: !Ref SubnetIds}
+      Code:
+        ZipFile: |
+          import json, socket, urllib.request, urllib.parse, urllib.error
+          def handler(ev, ctx):
+              url = ev["gatewayUrl"]; host = urllib.parse.urlparse(url).hostname or ""
+              if urllib.parse.urlparse(url).scheme != "https" or not host.endswith(".amazonaws.com") or ".gateway.bedrock-agentcore." not in host:
+                  return {"status": None, "error": "gatewayUrl must be an https AgentCore Gateway URL"}
+              out = {"resolvedTo": sorted({a[4][0] for a in socket.getaddrinfo(host, 443)})}
+              req = urllib.request.Request(url, data=json.dumps(ev["body"]).encode(), method="POST",
+                      headers={"Authorization": "Bearer " + ev["token"], "Content-Type": "application/json",
+                               **ev.get("extraHeaders", {})})
+              try:
+                  with urllib.request.urlopen(req, timeout=50) as r:
+                      out.update(status=r.status, body=r.read().decode()[:1500])
+              except urllib.error.HTTPError as e:
+                  out.update(status=e.code, body=e.read().decode()[:500])
+              except Exception as e:
+                  out.update(status=None, error=repr(e))
+              return out

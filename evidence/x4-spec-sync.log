@@ -1,0 +1,15 @@
+X4 tools before: ['benefits-api___getEmployee', 'classifier___classifyQuestion', 'employee-api___getEmployee', 'employee-api___listPlans', 'tools-rest___getEmployee', 'tools-rest___listPlans']
+X4a OpenAPI: add operation getBenefits (/benefits/{employeeId}) to the EXISTING tools-rest target via UpdateGatewayTarget
+  tools-rest: READY None
+X4b MCP: classifier server now also exposes estimateCost; call SynchronizeGatewayTargets (no target change)
+  tools after OpenAPI update, before sync: ['benefits-api___getEmployee', 'classifier___classifyQuestion', 'employee-api___getEmployee', 'employee-api___listPlans', 'tools-rest___getBenefits', 'tools-rest___getEmployee', 'tools-rest___listPlans']
+  sync response targets: [('classifier', 'SYNCHRONIZING')]
+  classifier: READY None lastSynchronizedAt: 2026-11-11 20:23:58.262323+00:00
+  tools after sync: ['benefits-api___getEmployee', 'classifier___classifyQuestion', 'classifier___estimateCost', 'employee-api___getEmployee', 'employee-api___listPlans', 'tools-rest___getBenefits', 'tools-rest___getEmployee', 'tools-rest___listPlans']
+  NEW: ['classifier___estimateCost', 'tools-rest___getBenefits']
+PASS both new tools appear (run './run-lab.sh extra-tools' first if they do not)
+X4c call the new tools
+  tools-rest___getBenefits: 200 {"jsonrpc":"2.0","id":61,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"77\",\"dental\":\"100% preventive\",\"servedBy\":\"NEW route v2\",\"xForwardedFor\":\"10.0.3.87\",\"host\":\"tools.demo-lab.internal\",\"jwtValidatedByAlb\":true}"}]}}
+  classifier___estimateCost: 200 {"jsonrpc":"2.0","id":62,"result":{"content":[{"type":"text","text":"{\"procedure\": \"cleaning\", \"estimate\": \"$25\", \"servedBy\": \"NEW MCP tool v2\", \"xForwardedFor\": \"10.0.1.12\", \"host\": \"tools.demo-lab.internal\", \"jwtValidatedByAlb\": true}"}],"isError":false}}
+  Lattice associations unchanged: True {"classifier": [{"domain": "tools.demo-lab.internal", "resourceAssociationArn": "snra-0e9b1c85a205d5626"}], "tools-rest": [{"domain": "tools.demo-lab.internal", "resourceAssociationArn": "snra-0f60a8c398fb0c036"}]}
+PASS no new VPC Lattice association was created

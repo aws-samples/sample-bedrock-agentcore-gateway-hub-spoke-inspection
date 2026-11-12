@@ -1,0 +1,32 @@
+
+==> J0 baseline
+{"jsonrpc":"2.0","id":70,"result":{"content":[{"type":"text","text":"{\"question\": \"jwks test\", \"category\": \"medical\", \"servedBy\": \"Classifier MCP (internal ALB, tool account)\", \"xForwardedFor\": \"10.0.3.87\
+
+
+==> J1 firewall -> block-egress
+Successfully created/updated stack - lab-hub-network
+
+==> J2 call with egress blocked (JWKS possibly cached by the ALB)
+{"jsonrpc":"2.0","id":71,"result":{"content":[{"type":"text","text":"McpException - MCP invocation failed: MCP server 'https://tools.demo-lab.internal/mcp' is not reachable"}],"isError":true}}
+
+==> J3 force JWKS re-fetch: /mcp rule JwksEndpoint -> https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ew5qVc6Vz/.well-known/jwks.json?refresh=1
+https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ew5qVc6Vz/.well-known/jwks.json?refresh=1
+
+==> J4 call with egress blocked and no cached keys
+{"jsonrpc":"2.0","id":72,"result":{"content":[{"type":"text","text":"McpException - MCP invocation failed: MCP server 'https://tools.demo-lab.internal/mcp' is not reachable"}],"isError":true}}
+{"jsonrpc":"2.0","id":73,"result":{"content":[{"type":"text","text":"McpException - MCP invocation failed: MCP server 'https://tools.demo-lab.internal/mcp' is not reachable"}],"isError":true}}
+
+==> J5 firewall default-action drops (drop established) for tool VPC -> internet:443
+  2026-11-11T20:15:14 10.12.2.117 -> 52.2.30.133 443 | sni None | blocked | aws:alert_established action
+  2026-11-11T20:15:21 10.12.2.117 -> 52.2.30.133 443 | sni None | blocked | aws:alert_established action
+  2026-11-11T20:15:34 10.12.2.117 -> 52.2.30.133 443 | sni None | blocked | aws:alert_established action
+
+==> J6 firewall -> allow, call again (the ALB can fetch JWKS)
+Successfully created/updated stack - lab-hub-network
+{"jsonrpc":"2.0","id":74,"result":{"content":[{"type":"text","text":"{\"question\": \"jwks test\", \"category\": \"medical\", \"servedBy\": \"Classifier MCP (internal ALB, tool account)\", \"xForwardedFor\": \"10.0.2.176
+
+
+==> J7 restore original /mcp rule JwksEndpoint (https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ew5qVc6Vz/.well-known/jwks.json)
+https://cognito-idp.us-east-1.amazonaws.com/us-east-1_ew5qVc6Vz/.well-known/jwks.json
+{"jsonrpc":"2.0","id":75,"result":{"content":[{"type":"text","text":"{\"question\": \"jwks test\", \"category\": \"medical\", \"servedBy\": \"Classifier MCP (internal ALB, tool account)\", \"xForwardedFor\": \"10.0.2.176
+

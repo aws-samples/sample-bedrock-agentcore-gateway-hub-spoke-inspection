@@ -1,0 +1,12 @@
+.DS_Store
+*.pyc
+__pycache__/
+
+# Lab state and secrets (never commit)
+.venv/
+.lab-state.env
+.lab-state.env.bak
+.pki/
+*.key
+*.pem
+lab-code/.env.local

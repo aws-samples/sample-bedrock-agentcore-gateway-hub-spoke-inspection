@@ -1,0 +1,53 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  LAB - AGENTCORE ACCOUNT. Security group and execution role for a VPC-mode AgentCore Runtime
+  that runs in the SHARED agent subnets (no internet route) and calls the Gateway through the hub-owned Gateway
+  interface VPC endpoint. The app team creates only a security group and an IAM role - no network changes.
+  The runtime itself is created by runtime_test.py (direct code deployment); run-lab.sh runtime does both.
+
+Parameters:
+  VpcId:      {Type: String, Description: shared spoke1 (agent) VPC}
+  CodeBucket: {Type: String, Description: S3 bucket that holds the runtime code zip}
+  S3PrefixListId: {Type: String, Description: "AWS-managed prefix list for S3 in this Region (com.amazonaws.<region>.s3)"}
+
+Resources:
+  RuntimeSg:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: AgentCore Runtime ENIs - egress 443 to the agent VPC (Gateway and Logs VPCEs) and S3
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 10.11.0.0/16, Description: interface endpoints in the agent VPC}
+        - {IpProtocol: tcp, FromPort: 443, ToPort: 443, DestinationPrefixListId: !Ref S3PrefixListId, Description: S3 gateway endpoint (code artifacts)}
+      Tags: [{Key: Name, Value: lab-sg-agent-runtime}]
+  RuntimeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lab-agent-runtime-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: bedrock-agentcore.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals: {aws:SourceAccount: !Ref AWS::AccountId}
+              ArnLike: {aws:SourceArn: !Sub "arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:*"}
+      Policies:
+        - PolicyName: runtime-basics
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents, logs:DescribeLogStreams, logs:DescribeLogGroups]
+                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/bedrock-agentcore/runtimes/*
+              - Effect: Allow
+                Action: [bedrock-agentcore:GetWorkloadAccessToken, bedrock-agentcore:GetWorkloadAccessTokenForJWT, bedrock-agentcore:GetWorkloadAccessTokenForUserId]
+                Resource: !Sub arn:aws:bedrock-agentcore:${AWS::Region}:${AWS::AccountId}:workload-identity-directory/default*
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:aws:s3:::${CodeBucket}/*
+
+Outputs:
+  RuntimeSgId:   {Value: !Ref RuntimeSg}
+  RuntimeRoleArn: {Value: !GetAtt RuntimeRole.Arn}

@@ -1,0 +1,177 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  LAB - API (TOOL) ACCOUNT. A PRIVATE REST API (stands in for an internal API with an OpenAPI description).
+  Reachable ONLY through the network-account-owned execute-api VPC endpoint in the shared tool VPC.
+  Every method requires an access token from this account's own Cognito user pool (Cognito authorizer with a scope),
+  so the API is a token boundary of its own. Mock backend - no compute to manage.
+  Deploy in the tool account AFTER 01-hub-network.yaml. The same template can be deployed in a second account
+  (ApiName) to show that a new API needs no network-account change.
+
+Parameters:
+  ApiVpceId:
+    Type: String
+    Description: ApiVpceId output from 01-hub-network.yaml
+  ApiName:
+    Type: String
+    Default: lab-employee-api
+    Description: Lets the same template stand up a 2nd API in another account (one-time-setup proof)
+  DomainPrefix:
+    Type: String
+    Description: Globally unique Cognito hosted-domain prefix for this API's identity provider
+
+  ManageApiGatewayAccount:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Set the Region-wide API Gateway CloudWatch Logs role (needed for access logs). false if your account already has one.
+
+Conditions:
+  ManageAccount: !Equals [!Ref ManageApiGatewayAccount, "true"]
+
+Resources:
+  # ---------------- the API team's own identity provider (machine-to-machine)
+  ApiPool:
+    Type: AWS::Cognito::UserPool
+    Properties: {UserPoolName: !Sub "${ApiName}-pool"}
+  ApiPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties: {UserPoolId: !Ref ApiPool, Domain: !Ref DomainPrefix}
+  ApiResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref ApiPool
+      Identifier: lab-api
+      Name: lab-api
+      Scopes: [{ScopeName: invoke, ScopeDescription: Call the API}]
+  GatewayClient:            # used only by AgentCore Gateway outbound OAuth (client_credentials)
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ApiResourceServer
+    Properties:
+      UserPoolId: !Ref ApiPool
+      ClientName: agentcore-gateway-outbound
+      GenerateSecret: true
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [client_credentials]
+      AllowedOAuthScopes: [lab-api/invoke]
+      SupportedIdentityProviders: [COGNITO]
+
+  Api:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Ref ApiName
+      EndpointConfiguration:
+        Types: [PRIVATE]   # VPCE is hub-owned; access is enforced by the aws:SourceVpce policy below
+      Policy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action: execute-api:Invoke
+            Resource: execute-api:/*
+          - Effect: Deny
+            Principal: "*"
+            Action: execute-api:Invoke
+            Resource: execute-api:/*
+            Condition:
+              StringNotEquals:
+                aws:SourceVpce: !Ref ApiVpceId
+
+  # Validates the access token's signature, issuer, expiry and scope before any method runs.
+  TokenAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      RestApiId: !Ref Api
+      Name: cognito-access-token
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs: [!GetAtt ApiPool.Arn]
+
+  EmployeesRes:
+    Type: AWS::ApiGateway::Resource
+    Properties: {RestApiId: !Ref Api, ParentId: !GetAtt Api.RootResourceId, PathPart: employees}
+  EmployeeIdRes:
+    Type: AWS::ApiGateway::Resource
+    Properties: {RestApiId: !Ref Api, ParentId: !Ref EmployeesRes, PathPart: "{employeeId}"}
+
+  GetEmployee:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref EmployeeIdRes
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref TokenAuthorizer
+      AuthorizationScopes: [lab-api/invoke]
+      RequestParameters: {method.request.path.employeeId: true}
+      Integration:
+        Type: MOCK
+        RequestTemplates: {application/json: '{"statusCode": 200}'}
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseTemplates:
+              application/json: !Sub |
+                {"employeeId":"$input.params('employeeId')","name":"Demo Employee","plan":"Gold PPO","status":"ACTIVE","servedBy":"${ApiName} in account ${AWS::AccountId}","sourceIp":"$context.identity.sourceIp","vpce":"$context.identity.vpceId","tokenClientId":"$context.authorizer.claims.client_id"}
+      MethodResponses: [{StatusCode: "200"}]
+
+  ListPlans:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !GetAtt Api.RootResourceId
+      HttpMethod: GET
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref TokenAuthorizer
+      AuthorizationScopes: [lab-api/invoke]
+      Integration:
+        Type: MOCK
+        RequestTemplates: {application/json: '{"statusCode": 200}'}
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseTemplates:
+              application/json: '{"plans":[{"id":"gold","name":"Gold PPO"},{"id":"silver","name":"Silver HMO"}]}'
+      MethodResponses: [{StatusCode: "200"}]
+
+  Deployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: [GetEmployee, ListPlans]
+    Properties: {RestApiId: !Ref Api}
+  # Access logs need an account-level CloudWatch Logs role for API Gateway in this Region. The lab sets it; set
+  # ManageApiGatewayAccount=false if your account already has one (this setting is shared by every API in the Region).
+  ApiGatewayCloudWatchRole:
+    Type: AWS::IAM::Role
+    Condition: ManageAccount
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: apigateway.amazonaws.com}
+            Action: sts:AssumeRole
+            Condition: {StringEquals: {aws:SourceAccount: !Ref AWS::AccountId}}
+      ManagedPolicyArns: [arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs]
+  ApiGatewayAccount:
+    Type: AWS::ApiGateway::Account
+    Condition: ManageAccount
+    Properties: {CloudWatchRoleArn: !GetAtt ApiGatewayCloudWatchRole.Arn}
+  AccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: {LogGroupName: !Sub "/aws/apigateway/${ApiName}-access", RetentionInDays: 30}
+  Stage:
+    Type: AWS::ApiGateway::Stage
+    Metadata:   # makes the stage wait for the account setting when the lab creates it
+      AccountSetting: !If [ManageAccount, !Ref ApiGatewayAccount, none]
+    Properties:
+      RestApiId: !Ref Api
+      DeploymentId: !Ref Deployment
+      StageName: prod
+      TracingEnabled: true
+      AccessLogSetting:
+        DestinationArn: !GetAtt AccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","sourceIp":"$context.identity.sourceIp","vpceId":"$context.identity.vpceId","clientId":"$context.authorizer.claims.client_id","httpMethod":"$context.httpMethod","resourcePath":"$context.resourcePath","status":"$context.status","requestTime":"$context.requestTime","responseLength":"$context.responseLength"}'
+
+Outputs:
+  ApiId:       {Value: !Ref Api}
+  ApiHostname: {Value: !Sub "${Api}.execute-api.${AWS::Region}.amazonaws.com", Description: "OpenAPI server host (public cert, private API)"}
+  ApiPoolId:   {Value: !Ref ApiPool}
+  ApiClientId: {Value: !Ref GatewayClient}
+  ApiDiscoveryUrl: {Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${ApiPool}/.well-known/openid-configuration"}

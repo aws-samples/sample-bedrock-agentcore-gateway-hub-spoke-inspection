@@ -1,0 +1,149 @@
+
+==> T1 tools/list (expect employee-api___listPlans, employee-api___getEmployee)
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "tools": [
+            {
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "employeeId": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "employeeId"
+                    ]
+                },
+                "name": "benefits-api___getEmployee",
+                "description": "Get benefits record"
+            },
+            {
+                "name": "classifier___classifyQuestion",
+                "description": "Classify a member question into a benefits category",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "question"
+                    ]
+                }
+            },
+            {
+                "name": "classifier___estimateCost",
+                "description": "Estimate member cost for a procedure",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "procedure": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "procedure"
+                    ]
+                }
+            },
+            {
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "employeeId": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "employeeId"
+                    ]
+                },
+                "name": "employee-api___getEmployee",
+                "description": "Get an employee by id"
+            },
+            {
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                },
+                "name": "employee-api___listPlans",
+                "description": "List benefit plans"
+            },
+            {
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "employeeId": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "employeeId"
+                    ]
+                },
+                "name": "tools-rest___getBenefits",
+                "description": "Get benefits for an employee"
+            },
+            {
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "employeeId": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "employeeId"
+                    ]
+                },
+                "name": "tools-rest___getEmployee",
+                "description": "Get an employee"
+            },
+            {
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {}
+                },
+                "name": "tools-rest___listPlans",
+                "description": "List benefit plans"
+            }
+        ]
+    }
+}
+
+==> T2 tools/call getEmployee 12345 (path: Gateway -> hub door -> TGW -> firewall -> VPCE -> private API)
+{
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+        "isError": false,
+        "content": [
+            {
+                "type": "text",
+                "text": "{\"employeeId\":\"12345\",\"name\":\"Demo Employee\",\"plan\":\"Gold PPO\",\"status\":\"ACTIVE\",\"servedBy\":\"lab-employee-api in account <TOOL_ACCOUNT_ID>\",\"sourceIp\":\"10.0.2.176\",\"vpce\":\"vpce-047187bbfc02e7093\",\"tokenClientId\":\"2o6rs1n0398fh2nvaobhqlfpbu\"}"
+            }
+        ]
+    }
+}
+  -> 'sourceIp' in the body should be a 10.0.x.x DOOR address (hub), proving the API sees the door IP.
+
+==> T3 no token (expect 401 from Gateway)
+  HTTP 401
+
+==> T4 WAF: script tag in the User-Agent header plus a SQLi-style query string (expect a WAF block; a header match returns an HTML HTTP 403 page)
+<html>
+<head><title>403 Forbidden</title></head>
+<body>
+<center><h1>403 Forbidden</h1></center>
+</body>
+</html>
+
+  HTTP 403
+
+==> T5 direct call to private API from the internet (expect DNS/connection failure - API is private)
+  HTTP 000
+  unreachable (expected)

@@ -1,0 +1,3 @@
+{"Version":"2012-10-17","Statement":[
+ {"Sid":"AllowOnlyViaHubVpce","Effect":"Allow","Principal":"*","Action":"bedrock-agentcore:InvokeGateway","Resource":"arn:aws:bedrock-agentcore:us-east-1:<agentcore-account-id>:gateway/<gateway-id>","Condition":{"StringEquals":{"aws:SourceVpce":"<gateway-vpce-id>"}}},
+ {"Sid":"DenyEverythingElse","Effect":"Deny","Principal":"*","Action":"bedrock-agentcore:InvokeGateway","Resource":"arn:aws:bedrock-agentcore:us-east-1:<agentcore-account-id>:gateway/<gateway-id>","Condition":{"StringNotEquals":{"aws:SourceVpce":"<gateway-vpce-id>"}}}]}
