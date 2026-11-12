@@ -14,7 +14,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 CALLER = "AgentCore Runtime (VPC mode)"
-GATEWAY_HOST = re.compile(r"[a-z0-9-]+\.gateway\.bedrock-agentcore\.[a-z0-9-]+\.amazonaws\.com")
+# Anchored, with bounded labels, so matching stays linear in the hostname length (DNS labels are at most 63 characters).
+GATEWAY_HOST = re.compile(r"^[a-z0-9-]{1,63}\.gateway\.bedrock-agentcore\.[a-z0-9-]{1,63}\.amazonaws\.com\Z")
 # Callers may add test headers (X-...), but not override Host, Authorization, Content-Type or Content-Length.
 EXTRA_HEADER = re.compile(r"X-[A-Za-z0-9-]{1,64}")
 
@@ -35,7 +36,7 @@ def _validated_gateway_url(raw_url):
         raise TypeError("gatewayUrl must be a string")
     parsed = urllib.parse.urlparse(raw_url)
     host = parsed.hostname or ""
-    if parsed.scheme != "https" or not GATEWAY_HOST.fullmatch(host):
+    if parsed.scheme != "https" or len(host) > 253 or not GATEWAY_HOST.match(host):
         raise ValueError("gatewayUrl must be an https AgentCore Gateway URL")
     if parsed.username or parsed.password:
         raise ValueError("gatewayUrl must not include credentials")
