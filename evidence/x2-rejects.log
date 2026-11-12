@@ -8,7 +8,7 @@ X2b OpenAPI target -> internal ALB with a token from the WRONG identity provider
 PASS token from the wrong identity provider: the call fails
 X2c control: same spec with the correct tool-account OAuth provider. Expect 200.
   target: READY
-  call: 200 {"jsonrpc":"2.0","id":43,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"1\",\"plan\":\"Gold PPO\",\"servedBy\":\"Service Gateway (internal ALB, tool account)\",\"xForwardedFor\":\"10.0.2.176\",\"host\":\"tools.demo-lab.internal\",\"jwtValidatedByAlb\":true}"}]}}
+  call: 200 {"jsonrpc":"2.0","id":43,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"1\",\"plan\":\"Gold PPO\",\"servedBy\":\"Service Gateway (internal ALB, tool account)\",\"xForwardedFor\":\"10.0.2.123\",\"host\":\"tools.demo-lab.internal\",\"jwtValidatedByAlb\":true}"}]}}
 PASS the correct identity provider: the call succeeds
 X2e same tool user pool and scope, but a DIFFERENT app client (client_id pin). Expect ALB 401.
   target: READY None
@@ -19,10 +19,10 @@ X2d private API Gateway path: OpenAPI target with no valid token for the API's C
   call: 200 {"jsonrpc":"2.0","id":44,"result":{"content":[{"type":"text","text":"An internal error occurred. Please retry later."}],"isError":true}}
 PASS private API without a valid access token: the call fails
   Confirm the 401s in the ALB access log (status 401, actions_executed jwt-validation): ./observability.sh verify, V5
-  cleanup ZYH7HIOPQE True
-  cleanup DICAYOOJYR True
-  cleanup FN0QLBRGPC True
-  cleanup IMXUUZJQWI True
-  cleanup AFKQR1ISAU True
+  cleanup DG2RYNL43F True
+  cleanup VEITZXZNHZ True
+  cleanup OMZZKQ5MI1 True
+  cleanup JELLPBQDFE True
+  cleanup EB2DT8C9TS True
   cleanup oauth provider lab-neg-wrong-idp
   cleanup api key provider lab-neg-not-a-token

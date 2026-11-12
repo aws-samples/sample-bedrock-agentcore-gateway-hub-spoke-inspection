@@ -1,45 +1,45 @@
 
 ==> V1 Gateway application logs (/lab/agentcore-gateway)
-   1794428385314 | {"isError": false, "log": "Started processing request", "requestBody": "{id=74, jsonrpc=2.0, method=tools/call, params={name=classifier___classifyQuestion, arguments={question=jwks test}}}", "id": "74"}
-   1794428385317 | {"isError": false, "log": "Received request for tools/call method", "id": "74"}
-   1794428385366 | {"isError": false, "log": "Executing tool classifier___classifyQuestion from target 8HPCMTYUJH", "id": "74"}
-   1794428386003 | {"isError": false, "responseBody": "{jsonrpc=2.0, id=74, result={content=[{type=text, text={\"question\": \"jwks test\", \"category\": \"medical\", \"servedBy\": \"Classifier MCP (internal ALB, tool account)\", \"xForwardedFor\": \"10.0.2.176\", \"host\": \"to
-   1794428398395 | {"isError": false, "log": "Started processing request", "requestBody": "{id=75, jsonrpc=2.0, method=tools/call, params={name=classifier___classifyQuestion, arguments={question=jwks test}}}", "id": "75"}
-   1794428398398 | {"isError": false, "log": "Received request for tools/call method", "id": "75"}
-   1794428398440 | {"isError": false, "log": "Executing tool classifier___classifyQuestion from target 8HPCMTYUJH", "id": "75"}
-   1794428398838 | {"isError": false, "responseBody": "{jsonrpc=2.0, id=75, result={content=[{type=text, text={\"question\": \"jwks test\", \"category\": \"medical\", \"servedBy\": \"Classifier MCP (internal ALB, tool account)\", \"xForwardedFor\": \"10.0.2.176\", \"host\": \"to
+   1794447131512 | {"isError": false, "log": "Executing tool classifier___classifyQuestion from target HXWJCJNB6D", "id": "24"}
+   1794447131805 | {"isError": false, "responseBody": "{jsonrpc=2.0, id=24, result={content=[{type=text, text={\"question\": \"tooth\", \"category\": \"dental\", \"servedBy\": \"Classifier MCP (internal ALB, tool account)\", \"xForwardedFor\": \"10.0.2.123\", \"host\": \"tools.d
+   1794447133452 | {"isError": true, "log": "Forbidden - Request blocked by AWS WAF", "id": "25"}
+   1794447133793 | {"isError": false, "log": "Started processing request", "requestBody": "{id=26, jsonrpc=2.0, method=tools/call, params={name=classifier___classifyQuestion, arguments={question=1 OR 1=1; DROP TABLE users--}}}", "id": "26"}
+   1794447133797 | {"isError": false, "log": "Received request for tools/call method", "id": "26"}
+   1794447133846 | {"isError": false, "log": "Executing tool classifier___classifyQuestion from target HXWJCJNB6D", "id": "26"}
+   1794447134232 | {"isError": false, "responseBody": "{jsonrpc=2.0, id=26, result={content=[{type=text, text={\"question\": \"1 OR 1=1; DROP TABLE users--\", \"category\": \"medical\", \"servedBy\": \"Classifier MCP (internal ALB, tool account)\", \"xForwardedFor\": \"10.0.1.4\
+   1794447134499 | {"isError": true, "log": "Forbidden - Request blocked by AWS WAF", "id": "27"}
 
 ==> V2 AWS WAF logs (aws-waf-logs-lab-gateway): blocked requests
-   BLOCK AWSCommon ['CrossSiteScripting_BODY'] | clientIp 10.11.1.13 | uri /mcp
+   BLOCK AWSCommon ['CrossSiteScripting_BODY'] | clientIp 10.11.2.129 | uri /mcp
    BLOCK AWSCommon ['CrossSiteScripting_BODY'] | clientIp <tester-public-ip> | uri /mcp
 
 ==> V3 VPC Lattice access logs (/lab/lattice-access)
-  events: 26
-   {"eventTimestamp":"2026-11-11T20:15:07.228Z","serviceNetworkResourceAssociationId":"snra-0e9b1c85a205d5626","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-02f630015e18df028","protocol":"tcp","gatewayIpPort":"10.0.3.87:8737","resourceIpPort":"10.12.2.117:443","serviceNetworkOwner
-   {"eventTimestamp":"2026-11-11T20:15:34.651Z","serviceNetworkResourceAssociationId":"snra-0e9b1c85a205d5626","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-02f630015e18df028","protocol":"tcp","gatewayIpPort":"10.0.1.12:49485","resourceIpPort":"10.12.2.117:443","serviceNetworkOwne
-   {"eventTimestamp":"2026-11-11T20:15:45.115Z","serviceNetworkResourceAssociationId":"snra-0e9b1c85a205d5626","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-02f630015e18df028","protocol":"tcp","gatewayIpPort":"10.0.1.12:33294","resourceIpPort":"10.12.2.117:443","serviceNetworkOwne
-   {"eventTimestamp":"2026-11-11T20:19:45.953Z","serviceNetworkResourceAssociationId":"snra-0e9b1c85a205d5626","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-02f630015e18df028","protocol":"tcp","gatewayIpPort":"10.0.2.176:8663","resourceIpPort":"10.12.2.117:443","serviceNetworkOwne
+  events: 12
+   {"eventTimestamp":"2026-11-12T01:32:11.777Z","serviceNetworkResourceAssociationId":"snra-052b7d8f964741ecc","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-0ef939bea3f26e0a7","protocol":"tcp","gatewayIpPort":"10.0.2.123:53829","resourceIpPort":"10.12.1.222:443","serviceNetworkOwn
+   {"eventTimestamp":"2026-11-12T01:32:14.023Z","serviceNetworkResourceAssociationId":"snra-052b7d8f964741ecc","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-0ef939bea3f26e0a7","protocol":"tcp","gatewayIpPort":"10.0.1.4:19348","resourceIpPort":"10.12.2.148:443","serviceNetworkOwner
+   {"eventTimestamp":"2026-11-12T01:32:14.100Z","serviceNetworkResourceAssociationId":"snra-052b7d8f964741ecc","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-0ef939bea3f26e0a7","protocol":"tcp","gatewayIpPort":"10.0.1.4:52837","resourceIpPort":"10.12.1.222:443","serviceNetworkOwner
+   {"eventTimestamp":"2026-11-12T01:32:14.140Z","serviceNetworkResourceAssociationId":"snra-052b7d8f964741ecc","resourceConfigurationArn":"arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-0ef939bea3f26e0a7","protocol":"tcp","gatewayIpPort":"10.0.1.4:24053","resourceIpPort":"10.12.2.148:443","serviceNetworkOwner
 
 ==> V4 VPC flow logs: resource gateway (10.0.x) -> tool VPC (10.12.x):443, and agent (10.11.x) -> Gateway VPCE:443
-  door->tools records: 38
-   2 <NETWORK_ACCOUNT_ID> eni-0be77c086c4c1d6f9 10.0.3.87 10.12.2.117 8737 443 6 10 560 1794428157 1794428217 ACCEPT OK
-   2 <NETWORK_ACCOUNT_ID> eni-0215c84c62a8acbec 10.0.1.12 10.12.2.117 49485 443 6 10 560 1794428196 1794428256 ACCEPT OK
-   2 <NETWORK_ACCOUNT_ID> eni-0215c84c62a8acbec 10.0.1.12 10.12.2.117 33294 443 6 9 508 1794428212 1794428272 ACCEPT OK
-  agent->VPCE records: 4
-   2 <AGENTCORE_ACCOUNT_ID> eni-00e50489ffd6df540 10.11.1.13 10.11.1.48 54403 443 6 12 2513 1794426733 1794426793 ACCEPT OK
-   2 <AGENTCORE_ACCOUNT_ID> eni-00e50489ffd6df540 10.11.1.13 10.11.1.48 43934 443 6 10 2429 1794426738 1794426798 ACCEPT OK
-   2 <NETWORK_ACCOUNT_ID> eni-0658e6b79d9c62797 10.11.1.13 10.11.1.48 43934 443 6 10 2429 1794426739 1794426799 ACCEPT OK
+  door->tools records: 12
+   2 <NETWORK_ACCOUNT_ID> eni-05efc9ad9d09980d0 10.0.3.39 10.12.2.148 53549 443 6 9 508 1794447193 1794447253 ACCEPT OK
+   2 <NETWORK_ACCOUNT_ID> eni-0d6fa032d608ef671 10.0.1.4 10.12.2.193 42823 443 6 1 52 1794447253 1794447313 ACCEPT OK
+   2 <NETWORK_ACCOUNT_ID> eni-0d6fa032d608ef671 10.0.1.4 10.12.2.193 42823 443 6 2 135 1794447316 1794447376 ACCEPT OK
+  agent->VPCE records: 3
+   2 <NETWORK_ACCOUNT_ID> eni-06e06a42ceeb4a0c2 10.11.2.129 10.11.1.103 33291 443 6 12 2513 1794447155 1794447224 ACCEPT OK
+   2 <AGENTCORE_ACCOUNT_ID> eni-0d5d5c0fcc7e0f9d2 10.11.2.129 10.11.1.103 26625 443 6 10 2429 1794447167 1794447227 ACCEPT OK
+   2 <AGENTCORE_ACCOUNT_ID> eni-0d5d5c0fcc7e0f9d2 10.11.2.129 10.11.1.103 33291 443 6 12 2513 1794447175 1794447235 ACCEPT OK
 
 ==> V5 ALB access + connection logs (s3://lab-alb-logs-<TOOL_ACCOUNT_ID>)
-  latest access-log object: AWSLogs/<TOOL_ACCOUNT_ID>/elasticloadbalancing/us-east-1/2026/11/11/<TOOL_ACCOUNT_ID>_elasticloadbalancing_us-east-1_app.lab-tools-internal.3a87301905f937ee_20261111T2020Z_10.12.2.117_1bsxxvon.log.gz
-    h2 2026-11-11T20:19:58.643101Z app/lab-tools-internal/3a87301905f937ee 10.0.2.176:40885 - 0.006 0.036 0.000 200 200 2672 269 "POST https://tools.demo-lab.internal:443/mcp HTTP/2.0" "Apache-HttpAsyncClient/5.6.1 (Java/25.0.4.1)" TLS_AES_128_GCM_SHA256 TLSv1.3 arn:aws:elasticloadbalancing:us-east-1:<TOOL_ACCOUNT_ID>:targetgroup/lab-spoke-Tg-XRVE4MF44R3F/78c462f4abce987f "Self=1-6af4cdee-291e48bd3dd0b0d71
-    h2 2026-11-11T20:19:58.719193Z app/lab-tools-internal/3a87301905f937ee 10.0.2.176:1568 - 0.035 0.023 0.000 202 202 2551 64 "POST https://tools.demo-lab.internal:443/mcp HTTP/2.0" "Apache-HttpAsyncClient/5.6.1 (Java/25.0.4.1)" TLS_AES_128_GCM_SHA256 TLSv1.3 arn:aws:elasticloadbalancing:us-east-1:<TOOL_ACCOUNT_ID>:targetgroup/lab-spoke-Tg-XRVE4MF44R3F/78c462f4abce987f "Self=1-6af4cdee-166fc143534dfef258a
-  latest conn-log object: AWSLogs/<TOOL_ACCOUNT_ID>/elasticloadbalancing/us-east-1/2026/11/11/conn_log_<TOOL_ACCOUNT_ID>_elasticloadbalancing_us-east-1_app.lab-tools-internal.3a87301905f937ee_20261111T2020Z_10.12.2.117_4aezmzpu.log.gz
-    2026-11-11T20:19:58.584246Z 10.0.2.176 40885 443 TLSv1.3 TLS_AES_128_GCM_SHA256 0.004 "-" - - Success TID_da16c474c305754e812061332f67e9d4 x25519 app/lab-tools-internal/3a87301905f937ee 10.12.2.117
-    2026-11-11T20:19:58.658060Z 10.0.2.176 1568 443 TLSv1.3 TLS_AES_128_GCM_SHA256 0.004 "-" - - Success TID_42c3a9ec75e303469578f494d291a354 x25519 app/lab-tools-internal/3a87301905f937ee 10.12.2.117
+  latest access-log object: AWSLogs/<TOOL_ACCOUNT_ID>/elasticloadbalancing/us-east-1/2026/11/12/<TOOL_ACCOUNT_ID>_elasticloadbalancing_us-east-1_app.lab-tools-internal.9d70d1a4f8c4b1e9_20261112T0135Z_10.12.2.148_369lokww.log.gz
+    h2 2026-11-12T01:32:14.092901Z app/lab-tools-internal/9d70d1a4f8c4b1e9 10.0.1.4:19348 - 0.003 0.057 0.000 200 200 2664 269 "POST https://tools.demo-lab.internal:443/mcp HTTP/2.0" "Apache-HttpAsyncClient/5.6.1 (Java/25.0.4.1)" TLS_AES_128_GCM_SHA256 TLSv1.3 arn:aws:elasticloadbalancing:us-east-1:<TOOL_ACCOUNT_ID>:targetgroup/lab-spoke-Tg-9B3EHMTGFTY4/9d2469cd4980012a "Self=1-6af5171e-7f99d00c0e3ab71e1ba
+    h2 2026-11-12T01:32:14.229907Z app/lab-tools-internal/9d70d1a4f8c4b1e9 10.0.1.4:24053 - 0.036 0.044 0.000 200 200 2650 421 "POST https://tools.demo-lab.internal:443/mcp HTTP/2.0" "Apache-HttpAsyncClient/5.6.1 (Java/25.0.4.1)" TLS_AES_128_GCM_SHA256 TLSv1.3 arn:aws:elasticloadbalancing:us-east-1:<TOOL_ACCOUNT_ID>:targetgroup/lab-spoke-Tg-9B3EHMTGFTY4/9d2469cd4980012a "Self=1-6af5171e-392ba814065921401fa
+  latest conn-log object: AWSLogs/<TOOL_ACCOUNT_ID>/elasticloadbalancing/us-east-1/2026/11/12/conn_log_<TOOL_ACCOUNT_ID>_elasticloadbalancing_us-east-1_app.lab-tools-internal.9d70d1a4f8c4b1e9_20261112T0135Z_10.12.2.148_1gy2say9.log.gz
+    2026-11-12T01:32:14.030012Z 10.0.1.4 19348 443 TLSv1.3 TLS_AES_128_GCM_SHA256 0.004 "-" - - Success TID_63f1347083348d4084847f0061b51b23 x25519 app/lab-tools-internal/9d70d1a4f8c4b1e9 10.12.2.148
+    2026-11-12T01:32:14.147012Z 10.0.1.4 24053 443 TLSv1.3 TLS_AES_128_GCM_SHA256 0.004 "-" - - Success TID_a748c1d9748c7349a87d1a1c0c6ff765 x25519 app/lab-tools-internal/9d70d1a4f8c4b1e9 10.12.2.148
 
 ==> V6 CloudTrail: the AgentCore account logs CreateServiceNetworkResourceAssociation; the network account (owner of the shared resource configuration) logs CreateServiceNetworkResourceAssociationBySharee
   [lab-spoke1] CreateServiceNetworkResourceAssociation: 10 events; latest:
-     2026-11-11T20:09:41Z AssumedRole bedrock-agentcore.amazonaws.com | src bedrock-agentcore.amazonaws.com | recipientAccount <AGENTCORE_ACCOUNT_ID>
+     2026-11-12T01:26:44Z AssumedRole bedrock-agentcore.amazonaws.com | src bedrock-agentcore.amazonaws.com | recipientAccount <AGENTCORE_ACCOUNT_ID>
   [lab-hub] CreateServiceNetworkResourceAssociationBySharee: 10 events; latest:
-     2026-11-11T20:09:41Z None None | src vpc-lattice.amazonaws.com | recipientAccount <NETWORK_ACCOUNT_ID>
+     2026-11-12T01:26:44Z None None | src vpc-lattice.amazonaws.com | recipientAccount <NETWORK_ACCOUNT_ID>

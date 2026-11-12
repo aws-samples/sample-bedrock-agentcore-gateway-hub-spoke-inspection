@@ -1,12 +1,12 @@
 
 ==> A5 tools/call tools-rest___getEmployee (OpenAPI -> internal ALB REST, OAuth + private CA)
-   {"employeeId":"555","plan":"Gold PPO","servedBy":"Service Gateway (internal ALB, tool account)","xForwardedFor":"10.0.1.12","host":"tools.demo-lab.internal","jwtValidatedByAlb":true}
+   {"employeeId":"555","plan":"Gold PPO","servedBy":"Service Gateway (internal ALB, tool account)","xForwardedFor":"10.0.3.39","host":"tools.demo-lab.internal","jwtValidatedByAlb":true}
 
 ==> A6 tools/call classifier___classifyQuestion (MCP server -> internal ALB /mcp)
-   {"question": "Is my tooth cleaning covered?", "category": "dental", "servedBy": "Classifier MCP (internal ALB, tool account)", "xForwardedFor": "10.0.2.176", "host": "tools.demo-lab.internal", "jwtValidatedByAlb": true}
+   {"question": "Is my tooth cleaning covered?", "category": "dental", "servedBy": "Classifier MCP (internal ALB, tool account)", "xForwardedFor": "10.0.2.123", "host": "tools.demo-lab.internal", "jwtValidatedByAlb": true}
 
 ==> P1 Private ingress: agent in shared subnet -> Gateway VPCE -> classifier
-  resolved ['10.11.1.48', '10.11.2.79'] | HTTP 200 | {"question": "dental plan?", "category": "dental", "servedBy": "Classifier MCP (internal ALB, tool account)", "xForwardedFor": "10.0.1.12", "host": "tools.demo-lab.internal", "jwtValidatedByAlb": true}
+  resolved ['10.11.1.103', '10.11.2.134'] | HTTP 200 | {"question": "dental plan?", "category": "dental", "servedBy": "Classifier MCP (internal ALB, tool account)", "xForwardedFor": "10.0.2.123", "host": "tools.demo-lab.internal", "jwtValidatedByAlb": true}
 
 ==> P2 WAF still enforced on the private path
-  resolved ['10.11.1.48', '10.11.2.79'] | HTTP 403 | <html> <head><title>403 Forbidden</title></head> <body> <center><h1>403 Forbidden</h1></center> </body> </html> 
+  resolved ['10.11.1.103', '10.11.2.134'] | HTTP 403 | <html> <head><title>403 Forbidden</title></head> <body> <center><h1>403 Forbidden</h1></center> </body> </html> 

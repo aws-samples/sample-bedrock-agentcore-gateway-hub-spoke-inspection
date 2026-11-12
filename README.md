@@ -135,7 +135,7 @@ cd lab-code
 ./run-lab.sh prove-multi           # second API through the same resource configuration
 ./run-lab.sh prove-return          # replies dropped at the firewall, then restored
 ./run-lab.sh prove-vpce-policy     # Gateway interface endpoint policy refuses an unlisted Gateway
-./run-lab.sh prove-ram-permission  # shows why a customer managed AWS RAM permission can't be used (exits 1 by design)
+./run-lab.sh prove-ram-permission  # shows why a customer managed AWS RAM permission can't replace the AWS managed one
 ./run-lab.sh prove-sharee-scp      # SCP keeps the Gateway the only consumer of the shared resource configuration
 ./observability.sh enable          # needs: alb
 ./observability.sh traffic         # then wait about 10 minutes

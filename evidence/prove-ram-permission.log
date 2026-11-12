@@ -9,16 +9,15 @@ None	ASSOCIATED
 
 ==> R2 AgentCore account: create a resource endpoint for the shared API resource configuration in a temporary VPC it owns (expect denied)
   
-aws: [ERROR]: An error occurred (UnauthorizedOperation) when calling the CreateVpcEndpoint operation: You are not authorized to perform this operation. User: arn:aws:sts::<AGENTCORE_ACCOUNT_ID>:assumed-role/OrganizationAccountAccessRole/botocore-session-1794424655 is not authorized to perform: ec2:CreateVpcEn
+aws: [ERROR]: An error occurred (UnauthorizedOperation) when calling the CreateVpcEndpoint operation: You are not authorized to perform this operation. User: arn:aws:sts::<AGENTCORE_ACCOUNT_ID>:assumed-role/OrganizationAccountAccessRole/botocore-session-1794446203 is not authorized to perform: ec2:CreateVpcEn
 
-==> R3 new Gateway target on the same resource configuration with the scoped permission (expect READY and a working call)
+==> R3 new Gateway target on the same resource configuration with the scoped permission (2026-11-11: FAILED, needs AssociateViaAWSService)
   target status: CREATING
   target status: FAILED
 [
-    "Failed to validate target: User: arn:aws:sts::<AGENTCORE_ACCOUNT_ID>:assumed-role/OrganizationAccountAccessRole/botocore-session-1794424655 is not authorized to perform: vpc-lattice:AssociateViaAWSService on resource: arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-077454219c1bcbafe because no resource-based policy allows the vpc-lattice:AssociateViaAWSService action (Service: VpcLattice, Status Code: 403, Request ID: a78c7b79-b574-4a2c-bc0b-78bfe4e888b4) (SDK Attempt Count: 1)"
+    "Failed to validate target: User: arn:aws:sts::<AGENTCORE_ACCOUNT_ID>:assumed-role/OrganizationAccountAccessRole/botocore-session-1794446203 is not authorized to perform: vpc-lattice:AssociateViaAWSService on resource: arn:aws:vpc-lattice:us-east-1:<NETWORK_ACCOUNT_ID>:resourceconfiguration/rcfg-0e7291109f527b15e because no resource-based policy allows the vpc-lattice:AssociateViaAWSService action (Service: VpcLattice, Status Code: 403, Request ID: d0036907-f9c1-42ad-a331-e932214baa46) (SDK Attempt Count: 1)"
 ]
-  {"jsonrpc":"2.0","id":61,"error":{"code":-32602,"message":"Unknown tool: ram-scoped___getEmployee"}}
+  target not READY (see reason above)
 
 ==> R4 restore the AWS managed permission and delete the temporary resources
 None	ASSOCIATED
-ERROR: scoped RAM permission check did not behave as expected (see above)

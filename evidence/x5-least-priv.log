@@ -3,5 +3,5 @@ X5 attempt 1: policy = blog's 5 vpc-lattice actions + ['bedrock-agentcore:Create
 X5 delete the target with the SAME minimal role (blog list has no Delete* lattice action)
   delete returned: True
   cleanup role lab-target-creator-minimal
-RESULT {"extraActionsNeeded": [], "create": "READY", "reasons": null, "targetId": "HAEEVCDCTM", "delete": true}
+RESULT {"extraActionsNeeded": [], "create": "READY", "reasons": null, "targetId": "XIWBOS7XVJ", "delete": true}
 PASS a role with the blog's VPC Lattice actions plus the AgentCore target actions creates and deletes a target

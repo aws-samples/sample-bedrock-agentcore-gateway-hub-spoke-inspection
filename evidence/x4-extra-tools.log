@@ -1,8 +1,8 @@
 
 ==> X4 prep: tool account redeploys the backend with ExtraTools=true (other parameters keep their previous values)
-  lab-hub-network LastUpdatedTime before: 2026-11-11T20:17:44.462000+00:00
+  lab-hub-network LastUpdatedTime before: 2026-11-12T01:19:07.067000+00:00
 
 Waiting for changeset to be created..
 Waiting for stack create/update to complete
 Successfully created/updated stack - lab-spoke2-tools-alb
-  Next: <repo>/lab-code/.venv/bin/python <repo>/lab-code/extra_tests.py spec-sync   (then confirm the network stack's LastUpdatedTime is still 2026-11-11T20:17:44.462000+00:00)
+  Next: <path> <path> spec-sync   (then confirm the network stack's LastUpdatedTime is still 2026-11-12T01:19:07.067000+00:00)

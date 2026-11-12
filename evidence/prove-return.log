@@ -9,15 +9,15 @@ Successfully created/updated stack - lab-hub-network
   no response within 60s (curl exit 28) - return traffic blocked
 
 ==> R3 Firewall ALERT log: return packets dropped (sid 100098) - polls up to 5 min for log delivery
-  2026-11-11T19:34:21 10.12.2.179 443 -> 10.0.2.176 17692 | to_client | blocked | PROOF return path blocked
-  2026-11-11T19:34:29 10.12.2.179 443 -> 10.0.2.176 17692 | to_client | blocked | PROOF return path blocked
-  2026-11-11T19:34:38 10.12.2.179 443 -> 10.0.2.176 17692 | to_client | blocked | PROOF return path blocked
-  2026-11-11T19:34:54 10.12.2.179 443 -> 10.0.2.176 17692 | to_client | blocked | PROOF return path blocked
-  2026-11-11T19:35:10 10.12.2.179 443 -> 10.0.2.176 17692 | to_client | blocked | PROOF return path blocked
+  2026-11-12T01:17:20 10.12.1.136 443 -> 10.0.2.123 52527 | to_client | blocked | PROOF return path blocked
+  2026-11-12T01:17:20 10.12.1.136 443 -> 10.0.2.123 52527 | to_client | blocked | PROOF return path blocked
+  2026-11-12T01:17:20 10.12.1.136 443 -> 10.0.2.123 52527 | to_client | blocked | PROOF return path blocked
+  2026-11-12T01:17:21 10.12.1.136 443 -> 10.0.2.123 52527 | to_client | blocked | PROOF return path blocked
+  2026-11-12T01:17:21 10.12.1.136 443 -> 10.0.2.123 52527 | to_client | blocked | PROOF return path blocked
 
 ==> R4 Restore firewall -> allow, and confirm T2 works again
 
 Waiting for changeset to be created..
 Waiting for stack create/update to complete
 Successfully created/updated stack - lab-hub-network
-   {"employeeId":"12345","name":"Demo Employee","plan":"Gold PPO","status":"ACTIVE","servedBy":"lab-employee-api in account <TOOL_ACCOUNT_ID>","sourceIp":"10.0.2.176","vpce":"vpce-047187bbfc02e7093","tokenClientId":"2o6rs1n0398fh2nvaobhqlfpbu"}
+   {"employeeId":"12345","name":"Demo Employee","plan":"Gold PPO","status":"ACTIVE","servedBy":"lab-employee-api in account <TOOL_ACCOUNT_ID>","sourceIp":"10.0.3.39","vpce":"vpce-0513b98956867d630","tokenClientId":"6sv9f5m90vtmd64san4uivpf4f"}

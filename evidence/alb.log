@@ -10,17 +10,17 @@ Waiting for changeset to be created..
 Waiting for stack create/update to complete
 Successfully created/updated stack - lab-spoke2-tools-alb
 
-==> A2 Hub (one time per backend ALB): resource configuration -> internal-lab-tools-internal-179617839.us-east-1.elb.amazonaws.com, added to the existing RAM share
+==> A2 Hub (one time per backend ALB): resource configuration -> internal-lab-tools-internal-166100181.us-east-1.elb.amazonaws.com, added to the existing RAM share
 
 Waiting for changeset to be created..
 Waiting for stack create/update to complete
 Successfully created/updated stack - lab-hub-network
 
 ==> A3 AgentCore account: OAuth provider (tool Cognito) + private CA secret + 2 targets
-created tools-rest: QQPTD1ZWVV
-created classifier: 8HPCMTYUJH
-{"name": "tools-rest", "id": "QQPTD1ZWVV", "status": "READY", "reasons": null, "lattice": [{"domain": "tools.demo-lab.internal", "resourceAssociationArn": "snra-0f60a8c398fb0c036"}]}
-{"name": "classifier", "id": "8HPCMTYUJH", "status": "READY", "reasons": null, "lattice": [{"domain": "tools.demo-lab.internal", "resourceAssociationArn": "snra-0e9b1c85a205d5626"}]}
+created tools-rest: DKWQBUULAW
+created classifier: HXWJCJNB6D
+{"name": "tools-rest", "id": "DKWQBUULAW", "status": "READY", "reasons": null, "lattice": [{"domain": "tools.demo-lab.internal", "resourceAssociationArn": "snra-0f89edd56b300065c"}]}
+{"name": "classifier", "id": "HXWJCJNB6D", "status": "READY", "reasons": null, "lattice": [{"domain": "tools.demo-lab.internal", "resourceAssociationArn": "snra-052b7d8f964741ecc"}]}
 
 ==> A4 Private ingress probe (Lambda in spoke1 SHARED subnet, no internet route) -> hub-owned Gateway VPCE
 

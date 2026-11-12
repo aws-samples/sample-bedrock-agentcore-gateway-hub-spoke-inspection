@@ -2,21 +2,21 @@
 ==> L1 Gateway application logs (vended logs -> CloudWatch Logs)  [AgentCore account]
 lab-gw-logs
 arn:aws:logs:us-east-1:<AGENTCORE_ACCOUNT_ID>:delivery-destination:lab-gw-cwl
-Lrhx5aRAVoIUUN0r
+WPCPpMODWAcAt0ga
 
 ==> L2 AWS WAF logs  [AgentCore account]
 arn:aws:logs:us-east-1:<AGENTCORE_ACCOUNT_ID>:log-group:aws-waf-logs-lab-gateway
 
 ==> L3 VPC Lattice access logs on each resource configuration  [network account]
-  als-02dfe29ff6531556c
+  als-072c8073d01ae8585
   throttled (attempt 1/5), retrying...
-  als-0a56897c8f061893a
+  als-0d785d19a7b1cf6a8
 
 ==> L4 VPC flow logs: agent VPC (Gateway VPCE) + resource gateway (central) VPC  [network account]
 {
     "ids": [
-        "fl-075c143a94cb25d8a",
-        "fl-0d4a8648a2218a29f"
+        "fl-0f44bf24c3489f73f",
+        "fl-02e2676551554f2ac"
     ],
     "errors": []
 }
