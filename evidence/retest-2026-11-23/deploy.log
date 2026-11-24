@@ -1,0 +1,65 @@
+
+==> Preflight: identities
+lab-hub     <network-account-id>
+lab-spoke1  <agentcore-account-id>
+lab-spoke2  <tool-account-id>
+
+==> 1/7 Hub network + Lattice door + RAM shares (~10-15 min: TGW + Network Firewall)
+
+Waiting for changeset to be created..
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-hub-network
+
+==> 2/7 API account: private REST API with its own Cognito authorizer
+
+Waiting for changeset to be created..
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-spoke2-api
+
+==> 3/7 AgentCore account: Cognito + WAF + Gateway role
+
+Waiting for changeset to be created..
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-spoke1-inbound
+
+==> 4/7 Accept any pending RAM invitations in AgentCore account (auto-accepted if org sharing is on)
+-------------------------------------
+|     GetResourceConfiguration      |
++------------------------+----------+
+|          name          | status   |
++------------------------+----------+
+|  lab-rcfg-employee-api |  ACTIVE  |
++------------------------+----------+
+
+==> 5/7 OAuth credential provider for the API account's Cognito (AgentCore Identity token vault)
+
+==> 6/7 Gateway (MCP, Cognito JWT) + WAF association
+  gateway status: CREATING
+  gateway status: READY
+WAF associated: lab-gateway-waf
+
+==> 6b/7 Network account: Gateway interface endpoint policy allows only this Gateway
+
+Waiting for changeset to be created..
+Waiting for stack create/update to complete
+Successfully created/updated stack - lab-hub-network
+
+==> 7/7 OpenAPI target -> SELF-MANAGED Lattice (shared address card from hub)
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: CREATING
+  target status: READY
+
+==> DEPLOYED. Next: ./run-lab.sh test

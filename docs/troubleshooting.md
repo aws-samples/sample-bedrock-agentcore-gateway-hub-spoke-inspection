@@ -13,7 +13,8 @@ The Gateway often returns a generic error to the agent. This table maps common s
 | JSON-RPC -32002 `Insufficient permissions` | Resource policy or endpoint policy denial | Gateway application log | Policy denial entry; compare `aws:SourceVpce` and endpoint policy resources |
 | Target `FAILED` with `PKIX path building failed` | Private CA not registered, or wrong CA | `GetGatewayTarget` | `statusReasons` |
 | Target `FAILED` with `not authorized to perform: vpc-lattice:...` | Missing IAM permission or SCP for the creating role | `GetGatewayTarget` | `statusReasons` names the action |
-| Target `FAILED` with `subnet ... cannot be found` | Managed mode on a shared subnet | `GetGatewayTarget` | `statusReasons` |
+| Target `FAILED` with `Security groups are required for shared subnet` | Managed mode on a shared subnet without a security group. Add a security group that the AgentCore account owns | `GetGatewayTarget` | `statusReasons` |
+| Target `FAILED` with `... cannot be found` | Managed mode on a shared subnet with the VPC's default security group or a shared security group. Use a security group that the AgentCore account owns | `GetGatewayTarget` | `statusReasons` |
 
 ---
 

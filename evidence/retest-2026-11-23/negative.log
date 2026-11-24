@@ -1,0 +1,49 @@
+
+==> N1a (check 4a) MANAGED mode on the SHARED agent subnets, no securityGroupIds (falls back to the VPC default SG, owned by the network account)
+{
+    "status": "FAILED",
+    "reasons": [
+        "Failed to create managed resource gateway: Security groups are required for shared subnet subnet-0ed6041e57059fe68. Specify at least one security group that you own. (Service: VpcLattice, Status Code: 400, Request ID: df564875-3c28-4f95-8561-8fc663c1e69e) (SDK Attempt Count: 1)"
+    ],
+    "managed": null
+}
+
+==> N1b (check 4b) MANAGED mode on the SAME shared subnets, with a security group the AgentCore account owns
+  security group sg-0a13d5562a03e5d35, owner <agentcore-account-id>
+{
+    "status": "READY",
+    "reasons": null,
+    "managed": [
+        {
+            "domain": "vpce-0158eb12cde2f7a73-d6geoykg.execute-api.us-east-1.vpce.amazonaws.com",
+            "resourceGatewayArn": "arn:aws:vpc-lattice:us-east-1:<agentcore-account-id>:resourcegateway/rgw-015d5d59c1fc45c3a"
+        }
+    ]
+}
+  managed resource gateway, as the AgentCore account sees it:
+{
+    "arn": "arn:aws:vpc-lattice:us-east-1:<agentcore-account-id>:resourcegateway/rgw-015d5d59c1fc45c3a",
+    "vpc": null,
+    "subnets": [
+        "subnet-0349242d415cfcdd4",
+        "subnet-0ed6041e57059fe68"
+    ],
+    "sgs": [
+        "sg-0a13d5562a03e5d35"
+    ],
+    "status": "ACTIVE"
+}
+  resource gateways the network account (VPC owner) can list:
+[
+    {
+        "name": "lab-hub-door",
+        "vpc": "vpc-0918e63ef426cb5a5"
+    }
+]
+
+==> N1c call through the managed target (its traffic leaves from the agent subnets, which the firewall policy does not allow)
+{
+    "Return": true,
+    "GroupId": "sg-0a13d5562a03e5d35"
+}
+  deleted sg-0a13d5562a03e5d35

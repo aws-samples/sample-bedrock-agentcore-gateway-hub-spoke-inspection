@@ -254,7 +254,7 @@ cmd_test() {
 cmd_negative() {
   # Check 4. VPC Lattice lets a participant account create a resource gateway in a shared subnet only with a security
   # group the participant owns; the VPC's default security group (owned by the network account) returns "cannot be found".
-  #   4a managedVpcResource WITHOUT securityGroupIds -> AgentCore falls back to the VPC default security group
+  #   4a managedVpcResource WITHOUT securityGroupIds -> FAILED, 400 "Security groups are required for shared subnet"
   #   4b managedVpcResource WITH a security group the AgentCore account owns
   # Both use the shared agent subnets, and the execute-api endpoint as routing domain.
   local SG NEG_A
@@ -291,7 +291,7 @@ PY
     echo "  WARNING: security group $1 still in use; delete it by hand later"
   }
 
-  say "N1a (check 4a) MANAGED mode on the SHARED agent subnets, no securityGroupIds (falls back to the VPC default SG, owned by the network account)"
+  say "N1a (check 4a) MANAGED mode on the SHARED agent subnets, no securityGroupIds (expect FAILED: security groups are required for shared subnets)"
   neg_body neg-managed-default-sg "" > "$TMPD/neg-a.json"
   NEG_A=$(aws bedrock-agentcore-control create-gateway-target --profile $S1 --region $REGION \
     --gateway-identifier "$GW_ID" --cli-input-json "file://$TMPD/neg-a.json" --query targetId --output text 2>&1) || { echo "  rejected at create: $NEG_A"; NEG_A=""; }
@@ -319,7 +319,7 @@ PY
         --query '{arn:arn,vpc:vpcIdentifier,subnets:subnetIds,sgs:securityGroupIds,status:status}' --output json || true
       echo "  resource gateways the network account (VPC owner) can list:"
       aws vpc-lattice list-resource-gateways --profile $HUB --region $REGION --query 'items[].{name:name,vpc:vpcIdentifier}' --output json
-      say "N1c call through the managed target (its traffic leaves from the agent subnets, which the firewall policy does not allow)"
+      say "N1c call through the managed target (its traffic leaves from the agent subnets, which the execute-api endpoint security group and the firewall policy do not allow)"
       T0=$(date +%s); TOK=$(token)
       curl -s -m 70 -X POST "$GW_URL" -H "Authorization: Bearer $TOK" -H 'Content-Type: application/json' \
         -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"neg-managed-own-sg___getEmployee","arguments":{"employeeId":"4"}}}' | cut -c1-200; echo

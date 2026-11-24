@@ -1,0 +1,65 @@
+
+==> SETUP managed target in the SHARED agent subnets with an AgentCore-owned SG (egress 443 to the tool VPC only)
+  SG sg-0244f97ca59bf117b owner <agentcore-account-id>
+  target WSOWJVLRIK status READY after 309s
+{
+    "reasons": null,
+    "managed": [
+        {
+            "domain": "vpce-0158eb12cde2f7a73-d6geoykg.execute-api.us-east-1.vpce.amazonaws.com",
+            "resourceGatewayArn": "arn:aws:vpc-lattice:us-east-1:<agentcore-account-id>:resourcegateway/rgw-0ec6762ba71234e38"
+        }
+    ]
+}
+
+==> N1c call with the network policy UNCHANGED (endpoint SG allows only 10.0.0.0/16; firewall passes only the resource gateway subnets)
+  no response within 70s (curl exit 28)
+
+  firewall alerts involving the agent range:
+  (no firewall alert records for 10.11.x)
+
+==> S1 network account: allow the agent range in the execute-api endpoint SG
+
+==> S2 call with the endpoint SG opened but the firewall unchanged
+  no response within 70s (curl exit 28)
+
+  firewall alerts involving the agent range:
+  2026-11-23T21:10:41 10.11.1.9 50115 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T21:10:42 10.11.1.9 17431 -> 10.12.1.57 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T21:10:45 10.11.1.9 50115 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T21:10:49 10.11.1.9 17431 -> 10.12.1.57 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T21:10:52 10.11.1.9 50115 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+
+==> S3 network account: add a firewall pass rule for the agent range -> tool VPC 443
+ACTIVE
+
+==> S4 call with both network changes
+{"jsonrpc":"2.0","id":103,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"103\",\"name\":\"Demo Employee\",\"plan\":\"Gold PPO\",\"status\":\"ACTIVE\",\"servedBy\":\"lab-employee-api in account <tool-account-id>\",\"sourceIp\":\"10.11.1.9\",\"vpce\":\"vpce-0158eb12cde2f7a73\",\"tokenClientId\":\"7teq91rf3esh3s0vtvb7b2r4kv\"}"}]}}
+
+==> R1 add a reply-direction drop for the agent range (before the pass rules)
+ACTIVE
+
+==> R2 call (expect no data)
+  no response within 70s (curl exit 28)
+
+  firewall drop records (sid 100298):
+  2026-11-23T21:15:56 10.12.2.217 443 -> 10.11.1.9 17492 | to_client | blocked | 100298 RETEST PROOF return path blocked (managed)
+  2026-11-23T21:15:57 10.12.2.217 443 -> 10.11.1.9 17492 | to_client | blocked | 100298 RETEST PROOF return path blocked (managed)
+  2026-11-23T21:15:57 10.12.2.217 443 -> 10.11.1.9 17492 | to_client | blocked | 100298 RETEST PROOF return path blocked (managed)
+  2026-11-23T21:15:59 10.12.2.217 443 -> 10.11.1.9 17492 | to_client | blocked | 100298 RETEST PROOF return path blocked (managed)
+  2026-11-23T21:15:59 10.12.2.217 443 -> 10.11.1.9 17492 | to_client | blocked | 100298 RETEST PROOF return path blocked (managed)
+
+==> R3 remove the drop rule, call again
+ACTIVE
+{"jsonrpc":"2.0","id":105,"result":{"isError":false,"content":[{"type":"text","text":"{\"employeeId\":\"105\",\"name\":\"Demo Employee\",\"plan\":\"Gold PPO\",\"status\":\"ACTIVE\",\"servedBy\":\"lab-employee-api in account <tool-account-id>\",\"sourceIp\":\"10.11.2.164\",\"vpce\":\"vpce-0158eb12cde2f7a73\",\"tokenClientId\":\"7teq91rf3esh3s0vtvb7b2r4kv\"}"}]}}
+
+==> RESTORE
+ACTIVE
+  firewall rules restored
+  endpoint SG rule removed
+  target WSOWJVLRIK deleted
+{
+    "Return": true,
+    "GroupId": "sg-0244f97ca59bf117b"
+}
+  SG sg-0244f97ca59bf117b deleted

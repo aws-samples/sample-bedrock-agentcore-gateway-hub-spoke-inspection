@@ -1,0 +1,44 @@
+
+==> SETUP managed target in the SHARED agent subnets with an AgentCore-owned SG (egress 443 to the tool VPC only)
+  SG sg-0cc67f059fef3e537 owner <agentcore-account-id>
+  target CXCFBOB9D0 status READY after 316s
+{
+    "reasons": null,
+    "managed": [
+        {
+            "domain": "vpce-0158eb12cde2f7a73-d6geoykg.execute-api.us-east-1.vpce.amazonaws.com",
+            "resourceGatewayArn": "arn:aws:vpc-lattice:us-east-1:<agentcore-account-id>:resourcegateway/rgw-04e9d43e77d49eee9"
+        }
+    ]
+}
+
+==> N1c call with the network policy UNCHANGED (endpoint SG allows only 10.0.0.0/16; firewall passes only the resource gateway subnets)
+  no response within 70s (curl exit 28)
+
+  firewall alerts involving the agent range:
+  (no firewall alert records for 10.11.x)
+
+==> S1 network account: allow the agent range in the execute-api endpoint SG
+
+==> S2 call with the endpoint SG opened but the firewall unchanged
+  no response within 70s (curl exit 28)
+
+  firewall alerts involving the agent range:
+  2026-11-23T19:47:47 10.11.1.31 50167 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T19:47:48 10.11.1.31 50167 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T19:47:49 10.11.1.31 50167 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T19:47:50 10.11.1.31 50167 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+  2026-11-23T19:47:54 10.11.1.31 50167 -> 10.12.2.217 443 | to_server | blocked | 4 aws:alert_established action
+
+==> S3 network account: add a firewall pass rule for the agent range -> tool VPC 443
+
+aws: [ERROR]: An error occurred (InvalidRequestException) when calling the UpdateRuleGroup operation: stateful rule order cannot be updated
+
+==> RESTORE
+  endpoint SG rule removed
+  target CXCFBOB9D0 deleted
+{
+    "Return": true,
+    "GroupId": "sg-0cc67f059fef3e537"
+}
+  SG sg-0cc67f059fef3e537 deleted

@@ -2,7 +2,9 @@
 
 Companion repository for the AWS blog post *Connect Amazon Bedrock AgentCore Gateway to private APIs in a hub-and-spoke network with centralized inspection*.
 
-The post describes a pattern for enterprises where a central network team owns every VPC and subnet and every flow between VPCs must pass a central firewall. A network account owns the Amazon VPC Lattice resource gateway, routes it through AWS Transit Gateway and the inspection VPC, and shares one resource configuration per backend with the AgentCore account through AWS Resource Access Manager (AWS RAM). Requests and replies between AgentCore Gateway and your private APIs and MCP servers both cross the firewall, and application accounts never manage VPCs, subnets, or routes.
+> **Update, November 2026:** Amazon VPC Lattice added support for participant accounts to create a resource gateway in a shared VPC subnet ([VPC Lattice document history](https://docs.aws.amazon.com/vpc-lattice/latest/ug/doc-history.html)). Managed mode in Amazon Bedrock AgentCore Gateway now works in subnets that a network account shares with the Gateway account. Each target needs a security group that the Gateway account owns. We retested the lab on 23 November 2026: see checks 4 and 4c in [docs/validation-checks.md](docs/validation-checks.md) and the output in [evidence/retest-2026-11-23/](evidence/retest-2026-11-23/). The network-owned pattern in this repository is unchanged and still works as described.
+
+The post describes a pattern for enterprises where a central network team owns every VPC and subnet and every flow between VPCs must pass a central firewall. A network account owns the Amazon VPC Lattice resource gateway, routes it through AWS Transit Gateway and the inspection VPC, and shares one resource configuration per backend with the AgentCore account through AWS Resource Access Manager (AWS RAM). Requests and replies between AgentCore Gateway and your private APIs and MCP servers both cross the firewall, and application accounts never manage VPCs, subnets, or routes. The post also describes managed mode in shared subnets as an alternative, and when to choose each option.
 
 This repository contains the lab we used to test the pattern, the raw test output, and reference material that the post links to.
 
@@ -39,9 +41,10 @@ This is **sample code for demonstration and educational purposes only. It is not
 │   ├── 05-spoke1-agent-probe.yaml  AgentCore account: probe Lambda function
 │   ├── 06-spoke1-runtime.yaml      AgentCore account: optional Runtime
 │   ├── run-lab.sh, lib.sh, observability.sh, x3-jwks-egress.sh, x8-rate-limit.sh
+│   ├── retest-shared-subnet.sh     managed mode in shared subnets (2026-11-23 retest)
 │   ├── extra_tests.py, tools_targets.py, runtime_test.py, runtime_agent/
 │   └── gateway-resource-policy.example.json
-├── evidence/                       raw output of the last lab run
+├── evidence/                       raw output of the last full lab run; retest-2026-11-23/ holds the shared-subnet retest
 ├── media/                          Figure 1 and the script that draws it
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
@@ -54,7 +57,7 @@ This is **sample code for demonstration and educational purposes only. It is not
 |---|---|
 | [docs/lab-layout.md](docs/lab-layout.md) | Address plan, route tables, Availability Zones, resource gateway sizing and permanent settings |
 | [docs/build-order.md](docs/build-order.md) | Build steps for each account, and the values teams pass to each other |
-| [docs/validation-checks.md](docs/validation-checks.md) | All 14 validation checks, with expected and observed results |
+| [docs/validation-checks.md](docs/validation-checks.md) | All validation checks, with expected and observed results |
 | [docs/test-results.md](docs/test-results.md) | Results of the last lab run, mapped to commands and evidence files |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Symptoms, causes, and the log that shows each |
 | [docs/logging.md](docs/logging.md) | One log source per hop, and the account that owns it |
@@ -84,6 +87,7 @@ The lab uses three member accounts in one AWS Organizations organization, plus t
 | `05-spoke1-agent-probe.yaml` | AgentCore account: a VPC Lambda function in the shared agent subnets that stands in for an agent |
 | `06-spoke1-runtime.yaml` | AgentCore account: security group and role for an AgentCore Runtime in VPC mode |
 | `run-lab.sh` | Deploys, tests, and tears down the lab |
+| `retest-shared-subnet.sh` | Managed mode with the resource gateway in the shared agent subnets: tests the endpoint security group and firewall changes it needs, and the reply path. Restores everything it changes |
 | `observability.sh` | Turns on every log source, generates traffic, verifies what was logged, and tests the Gateway resource policy |
 | `extra_tests.py` | Private CA, ALB token rejects, least-privilege IAM, and new tools without a new target |
 | `x3-jwks-egress.sh`, `x8-rate-limit.sh` | Blocked egress for the ALB's signing-key fetch; AWS WAF rate-based rule |
@@ -130,7 +134,9 @@ cd lab-code
 ./run-lab.sh test                  # inbound auth, private API path, AWS WAF
 ./run-lab.sh alb                   # internal ALB, OAuth, private CA, MCP and OpenAPI targets, probe Lambda
 ./run-lab.sh test-alb
-./run-lab.sh negative              # managed mode on a shared subnet fails
+./run-lab.sh negative              # managed mode on a shared subnet: needs a security group the AgentCore account owns
+./retest-shared-subnet.sh          # needs deploy. Managed mode in shared subnets through the firewall, both directions. Temporarily changes the
+                                   # firewall rule group and execute-api endpoint security group, adds a target and security group, restores all
 ./run-lab.sh evidence              # resource and association inventory
 ./run-lab.sh prove-multi           # second API through the same resource configuration
 ./run-lab.sh prove-return          # replies dropped at the firewall, then restored

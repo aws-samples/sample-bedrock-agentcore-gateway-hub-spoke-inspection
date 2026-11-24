@@ -1,0 +1,5 @@
+date: 2026-11-23T18:28:55Z
+commit: b2a9e03 (lab code the retest ran)
+aws-cli: aws-cli/2.42.1 Python/3.14.10
+boto3: 1.44.0  botocore: 1.44.0
+accounts: network=<network-account-id> agentcore=<agentcore-account-id> tool=<tool-account-id> region=us-east-1
